@@ -31,15 +31,16 @@ type SkyRenderInfo struct {
 	LookDir      mgl32.Vec3
 }
 
-// SkyPlane stores information about the darker blue ceiling plane present in
-// the sky.
+// SkyPlane stores information about the blue ceiling plane and the dark blue
+// void plane present in the sky.
 type skyPlane struct {
-	vao, vbo    uint32
-	program     uint32
-	mvpUnf      int32
-	skyColorUnf int32
-	fogColorUnf int32
-	farPlaneUnf int32
+	skyVao, skyVbo   uint32
+	voidVao, voidVbo uint32
+	program          uint32
+	mvpUnf           int32
+	colorUnf         int32
+	fogColorUnf      int32
+	farPlaneUnf      int32
 }
 
 // SunrisePlane stores information about the red/orange sunrise/sunset plane
@@ -140,42 +141,9 @@ func (s *Sky) Destroy() {
 	s.sunrisePlane.destroy()
 }
 
-// Destroy releases all the resources allocated by the sky plane.
-func (p *skyPlane) destroy() {
-	gl.DeleteProgram(p.program)
-	gl.DeleteVertexArrays(1, &p.vao)
-	gl.DeleteBuffers(1, &p.vbo)
-}
-
-// Destroy releases all the resources allocated by the sunrise plane.
-func (p *sunrisePlane) destroy() {
-	gl.DeleteProgram(p.program)
-	gl.DeleteVertexArrays(1, &p.vao)
-	gl.DeleteBuffers(1, &p.vbo)
-}
-
-// NewSkyPlane creates a new sky plane.
+// NewSkyPlane builds the vertex data and allocates the required OpenGL
+// resources for the sky plane.
 func newSkyPlane() skyPlane {
-	// Create the VAO
-	var vao uint32
-	gl.GenVertexArrays(1, &vao)
-	gl.BindVertexArray(vao)
-
-	// Vertex data for the sky plane
-	vertices := [...]float32{
-		-384.0, 16.0, -384.0, // The size of the sky plane must be larger
-		384.0, 16.0, -384.0, // than the far plane distance, or else the
-		-384.0, 16.0, 384.0, // sky will look noticeably square.
-		384.0, 16.0, 384.0,
-	}
-
-	// Create the VBO and populate it with data
-	var vbo uint32
-	gl.GenBuffers(1, &vbo)
-	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, int(unsafe.Sizeof(vertices)),
-		gl.Ptr(vertices[:]), gl.STATIC_DRAW)
-
 	// Create the shader progarm
 	program, err := loadShaders(skyVertexShader, skyFragmentShader)
 	if err != nil {
@@ -185,50 +153,80 @@ func newSkyPlane() skyPlane {
 
 	// Cache the locations of uniforms
 	mvpUnf := gl.GetUniformLocation(program, gl.Str("mvp\x00"))
-	skyColorUnf := gl.GetUniformLocation(program, gl.Str("skyColor\x00"))
+	colorUnf := gl.GetUniformLocation(program, gl.Str("skyColor\x00"))
 	fogColorUnf := gl.GetUniformLocation(program, gl.Str("fogColor\x00"))
 	farPlaneUnf := gl.GetUniformLocation(program, gl.Str("farPlane\x00"))
+
+	// Vertex data for the sky plane
+	skyVertices := [...]float32{
+		-384.0, 16.0, -384.0, // The size of the sky plane must be larger
+		384.0, 16.0, -384.0, // than the far plane distance, or else the
+		-384.0, 16.0, 384.0, // sky will look noticeably square.
+		384.0, 16.0, 384.0,
+	}
+
+	// Vertex data for the void plane
+	voidVertices := [...]float32{
+		-384.0, -16.0, -384.0, // Swap the winding order from the sky plane so
+		-384.0, -16.0, 384.0, // GL_CULL_FACE still works.
+		384.0, -16.0, -384.0,
+		384.0, -16.0, 384.0,
+	}
+
+	// Create the sky and void planes
+	skyVao, skyVbo := genPlane(program, skyVertices[:])
+	voidVao, voidVbo := genPlane(program, voidVertices[:])
+
+	// Create the sky plane object holding it all together
+	return skyPlane{skyVao, skyVbo, voidVao, voidVbo, program, mvpUnf,
+		colorUnf, fogColorUnf, farPlaneUnf}
+}
+
+// Generates the sky or void plane VAO and VBO, and enables the vertex
+// attributes.
+func genPlane(program uint32, vertices []float32) (vao, vbo uint32) {
+	// Create the VAO
+	gl.GenVertexArrays(1, &vao)
+	gl.BindVertexArray(vao)
+
+	// Create the VBO and populate it with data
+	gl.GenBuffers(1, &vbo)
+	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
+	gl.BufferData(gl.ARRAY_BUFFER,
+		int(unsafe.Sizeof(float32(0.0)))*len(vertices),
+		gl.Ptr(vertices[:]),
+		gl.STATIC_DRAW)
 
 	// Enable the position attribute
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
 	gl.EnableVertexAttribArray(posAttr)
 	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false, 0, nil)
-
-	// Create the sky plane object holding it all together
-	return skyPlane{vao, vbo, program, mvpUnf, skyColorUnf, fogColorUnf,
-		farPlaneUnf}
+	return
 }
 
-// NewSunrisePlane creates a new sunrise plane.
+// Destroy releases all the resources allocated by the sky plane.
+func (p *skyPlane) destroy() {
+	gl.DeleteProgram(p.program)
+	gl.DeleteVertexArrays(1, &p.skyVao)
+	gl.DeleteVertexArrays(1, &p.voidVao)
+	gl.DeleteBuffers(1, &p.skyVbo)
+	gl.DeleteBuffers(1, &p.voidVbo)
+}
+
+// NewSunrisePlane builds the vertex data and allocates the required OpenGL
+// resources for the sunrise plane.
 func newSunrisePlane() sunrisePlane {
 	// Create the VAO
 	var vao uint32
 	gl.GenVertexArrays(1, &vao)
 	gl.BindVertexArray(vao)
 
-	// Generate the vertex data
-	var vertices [18 * 4]float32
-	vertices[0] = 0.0   // position.x
-	vertices[1] = 100.0 // position.y
-	vertices[2] = 0.0   // position.z
-	vertices[3] = 1.0   // alpha multiplier
-	for i := 0; i <= 16; i++ {
-		// The original minecraft source modulates the z component by the alpha
-		// of the current sunrise/sunset color. Since the alpha changes every
-		// frame, we do this in the vertex shader to reduce runtime overhead.
-		angle := float64(i) * 2.0 * math.Pi / 16.0
-		sin, cos := math.Sincos(angle)
-		vertices[(i+1)*4] = float32(sin) * 120.0   // position.x
-		vertices[(i+1)*4+1] = float32(cos) * 120.0 // position.y
-		vertices[(i+1)*4+2] = -float32(cos) * 40.0 // position.z
-		vertices[(i+1)*4+3] = 0.0                  // alpha multiplier
-	}
-
 	// Create the VBO and populate it with data
+	vertices := genSunrisePlaneVertices()
 	var vbo uint32
 	gl.GenBuffers(1, &vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, int(unsafe.Sizeof(vertices)),
+	gl.BufferData(gl.ARRAY_BUFFER, int(unsafe.Sizeof(float32(0.0))*18*4),
 		gl.Ptr(vertices[:]), gl.STATIC_DRAW)
 
 	// Create the shader progarm
@@ -257,6 +255,37 @@ func newSunrisePlane() sunrisePlane {
 		gl.PtrOffset(int(offset)))            // offset of 3
 
 	return sunrisePlane{vao, vbo, program, mvpUnf, colorUnf}
+}
+
+// GenSunrisePlaneVertices builds the vertex data array for the sunrise plane.
+func genSunrisePlaneVertices() []float32 {
+	// Generate the vertex data
+	var vertices [18 * 4]float32
+	vertices[0] = 0.0   // position.x
+	vertices[1] = 100.0 // position.y
+	vertices[2] = 0.0   // position.z
+	vertices[3] = 1.0   // alpha multiplier
+
+	for i := 0; i <= 16; i++ {
+		// The original minecraft source modulates the z component by the alpha
+		// of the current sunrise/sunset color. Since the alpha changes every
+		// frame, we do this in the vertex shader to reduce runtime overhead.
+		angle := float64(i) * 2.0 * math.Pi / 16.0
+		sin, cos := math.Sincos(angle)
+		vertices[(i+1)*4] = float32(sin) * 120.0   // position.x
+		vertices[(i+1)*4+1] = float32(cos) * 120.0 // position.y
+		vertices[(i+1)*4+2] = -float32(cos) * 40.0 // position.z
+		vertices[(i+1)*4+3] = 0.0                  // alpha multiplier
+	}
+
+	return vertices[:]
+}
+
+// Destroy releases all the resources allocated by the sunrise plane.
+func (p *sunrisePlane) destroy() {
+	gl.DeleteProgram(p.program)
+	gl.DeleteVertexArrays(1, &p.vao)
+	gl.DeleteBuffers(1, &p.vbo)
 }
 
 // Color represents a color as red, green, and blue color components.
@@ -428,7 +457,7 @@ func (s *Sky) renderBackground(info SkyRenderInfo) {
 
 // Renders the sky plane based on the camera's orientation matrix, and the
 // current sky and fog colors.
-func (p *skyPlane) render(info SkyRenderInfo) {
+func (p *skyPlane) renderSky(info SkyRenderInfo) {
 	// Set the current shader program to the sky plane program
 	gl.UseProgram(p.program)
 
@@ -438,7 +467,7 @@ func (p *skyPlane) render(info SkyRenderInfo) {
 	// Set the color of the sky plane to the sky color
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	skyColor := getSkyColor(celestialAngle)
-	gl.Uniform3f(p.skyColorUnf, skyColor.R(), skyColor.G(), skyColor.B())
+	gl.Uniform3f(p.colorUnf, skyColor.R(), skyColor.G(), skyColor.B())
 
 	// Set the fog color uniform
 	fogColor := getFogColor(celestialAngle, info.RenderRadius, info.LookDir)
@@ -448,7 +477,21 @@ func (p *skyPlane) render(info SkyRenderInfo) {
 	gl.Uniform1f(p.farPlaneUnf, info.Camera.farPlane)
 
 	// Render the sky plane
-	gl.BindVertexArray(p.vao)
+	gl.BindVertexArray(p.skyVao)
+	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+}
+
+// Renders the void plane based on the camera's orientation matrix, and the
+// current void and fog colors.
+func (p *skyPlane) renderVoid(info SkyRenderInfo) {
+	// Only change the sky color uniform from rendering the sky plane above,
+	// to the void color
+	celestialAngle := getCelestialAngle(info.WorldTime)
+	voidColor := getVoidColor(celestialAngle)
+	gl.Uniform3f(p.colorUnf, voidColor.R(), voidColor.G(), voidColor.B())
+
+	// Render the sky plane
+	gl.BindVertexArray(p.voidVao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 }
 
@@ -459,7 +502,7 @@ func (p *sunrisePlane) render(info SkyRenderInfo) {
 	gl.UseProgram(p.program)
 
 	// Calculate a rotation matrix based on whether it's currently sunrise or
-	// sunset
+	// sunset (to change where the sunrise plane appears in the sky)
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	var todAngle float32 // tod stands for time of day
 	if math.Sin(celestialAngle*math.Pi*2.0) < 0.0 {
@@ -500,9 +543,9 @@ func (s *Sky) Render(info SkyRenderInfo) {
 
 	// Render components of the sky separately
 	s.renderBackground(info)
-	s.skyPlane.render(info)
+	s.skyPlane.renderSky(info)
+	s.skyPlane.renderVoid(info)
 	s.sunrisePlane.render(info)
-	// TODO: render the void plane as in earlier Minecraft versions
 
 	// Reset the OpenGL configuration
 	gl.Disable(gl.CULL_FACE)
