@@ -56,10 +56,10 @@ func (e *Entity) Walk(delta mgl32.Vec3) {
 func (e *Entity) Look(delta mgl32.Vec2) {
 	// Clamp the vertical look direction
 	y := e.rotation.Y() + delta.Y()
-	if y > math.Pi/2.0 {
-		y = math.Pi / 2.0
-	} else if y < -math.Pi/2.0 {
-		y = -math.Pi / 2.0
+	if y >= math.Pi/2.0-0.0001 {
+		y = math.Pi/2.0 - 0.0001
+	} else if y <= -math.Pi/2.0+0.0001 {
+		y = -math.Pi/2.0 + 0.0001
 	}
 
 	// Update the entity's look direction

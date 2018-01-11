@@ -1,14 +1,15 @@
-package render
+package sky
 
 import (
 	"log"
 	"math"
 	"unsafe"
 
+	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 
+	"github.com/benanders/mineral/render"
 	"github.com/benanders/mineral/world"
-	"github.com/go-gl/gl/v3.3-core/gl"
 )
 
 // The temperature throughout the world (influences the sky, fog, and sunrise
@@ -22,11 +23,11 @@ type Sky struct {
 	sunrisePlane sunrisePlane
 }
 
-// SkyRenderInfo stores a bunch of information required by the sky renderer in
+// RenderInfo stores a bunch of information required by the sky renderer in
 // order to draw the sky.
-type SkyRenderInfo struct {
+type RenderInfo struct {
 	WorldTime    float64
-	Camera       *Camera
+	Camera       *render.Camera
 	RenderRadius uint
 	LookDir      mgl32.Vec3
 }
@@ -145,7 +146,7 @@ func (s *Sky) Destroy() {
 // resources for the sky plane.
 func newSkyPlane() skyPlane {
 	// Create the shader progarm
-	program, err := loadShaders(skyVertexShader, skyFragmentShader)
+	program, err := render.LoadShaders(skyVertexShader, skyFragmentShader)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -230,7 +231,7 @@ func newSunrisePlane() sunrisePlane {
 		gl.Ptr(vertices[:]), gl.STATIC_DRAW)
 
 	// Create the shader progarm
-	program, err := loadShaders(sunriseVertexShader, sunriseFragmentShader)
+	program, err := render.LoadShaders(sunriseVertexShader, sunriseFragmentShader)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -445,7 +446,7 @@ func getFogColor(celestialAngle float64, renderRadius uint,
 }
 
 // Clears the screen to the current fog color.
-func (s *Sky) renderBackground(info SkyRenderInfo) {
+func (s *Sky) renderBackground(info RenderInfo) {
 	// Get the current fog color
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	fogColor := getFogColor(celestialAngle, info.RenderRadius, info.LookDir)
@@ -457,12 +458,12 @@ func (s *Sky) renderBackground(info SkyRenderInfo) {
 
 // Renders the sky plane based on the camera's orientation matrix, and the
 // current sky and fog colors.
-func (p *skyPlane) renderSky(info SkyRenderInfo) {
+func (p *skyPlane) renderSky(info RenderInfo) {
 	// Set the current shader program to the sky plane program
 	gl.UseProgram(p.program)
 
 	// Set the shader's MVP uniform to the camera's orientation matrix
-	gl.UniformMatrix4fv(p.mvpUnf, 1, false, &info.Camera.orientation[0])
+	gl.UniformMatrix4fv(p.mvpUnf, 1, false, &info.Camera.Orientation[0])
 
 	// Set the color of the sky plane to the sky color
 	celestialAngle := getCelestialAngle(info.WorldTime)
@@ -474,7 +475,7 @@ func (p *skyPlane) renderSky(info SkyRenderInfo) {
 	gl.Uniform3f(p.fogColorUnf, fogColor.R(), fogColor.G(), fogColor.B())
 
 	// Set the far plane distance, used for fog calculations
-	gl.Uniform1f(p.farPlaneUnf, info.Camera.farPlane)
+	gl.Uniform1f(p.farPlaneUnf, info.Camera.FarPlane)
 
 	// Render the sky plane
 	gl.BindVertexArray(p.skyVao)
@@ -483,7 +484,7 @@ func (p *skyPlane) renderSky(info SkyRenderInfo) {
 
 // Renders the void plane based on the camera's orientation matrix, and the
 // current void and fog colors.
-func (p *skyPlane) renderVoid(info SkyRenderInfo) {
+func (p *skyPlane) renderVoid(info RenderInfo) {
 	// Only change the sky color uniform from rendering the sky plane above,
 	// to the void color
 	celestialAngle := getCelestialAngle(info.WorldTime)
@@ -497,7 +498,7 @@ func (p *skyPlane) renderVoid(info SkyRenderInfo) {
 
 // Renders the sunrise/sunset plane based on the camera's orientation matrix,
 // and the current sunrise/sunset color.
-func (p *sunrisePlane) render(info SkyRenderInfo) {
+func (p *sunrisePlane) render(info RenderInfo) {
 	// Set the current shader program to the sunrise plane program
 	gl.UseProgram(p.program)
 
@@ -515,7 +516,7 @@ func (p *sunrisePlane) render(info SkyRenderInfo) {
 	// Set the shader's MVP uniform to the camera's orientation matrix
 	xRot := mgl32.HomogRotate3D(math.Pi/2.0, mgl32.Vec3{1.0, 0.0, 0.0})
 	zRot := mgl32.HomogRotate3D(math.Pi/2.0, mgl32.Vec3{0.0, 0.0, 1.0})
-	mvp := info.Camera.orientation.Mul4(xRot.Mul4(todRot.Mul4(zRot)))
+	mvp := info.Camera.Orientation.Mul4(xRot.Mul4(todRot.Mul4(zRot)))
 	gl.UniformMatrix4fv(p.mvpUnf, 1, false, &mvp[0])
 
 	// Set the sunrise color uniform
@@ -537,7 +538,7 @@ func (p *sunrisePlane) render(info SkyRenderInfo) {
 
 // Render clears the color buffer to the fog color, renders the sky plane,
 // sunrise/sunset plane, sun/moon, stars, and void plane.
-func (s *Sky) Render(info SkyRenderInfo) {
+func (s *Sky) Render(info RenderInfo) {
 	// Enable some OpenGL configuration
 	gl.Enable(gl.CULL_FACE)
 
@@ -549,4 +550,20 @@ func (s *Sky) Render(info SkyRenderInfo) {
 
 	// Reset the OpenGL configuration
 	gl.Disable(gl.CULL_FACE)
+}
+
+// Lerp performs linear interpolation between the starting and ending values,
+// based on the given amount.
+func lerp(start, end, amount float64) float64 {
+	return start*(1.0-amount) + end*amount
+}
+
+// Clamp restricts a value between a minimum and maximum value.
+func clamp(value, min, max float64) float64 {
+	if value < min {
+		return min
+	} else if value > max {
+		return max
+	}
+	return value
 }

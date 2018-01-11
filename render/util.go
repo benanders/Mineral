@@ -9,7 +9,7 @@ import (
 
 // LoadShaders compiles a vertex and fragment shader from a string, creates a
 // new OpenGL shader program, attaches the two shaders, and links the program.
-func loadShaders(vertexSource, fragmentSource string) (uint32, error) {
+func LoadShaders(vertexSource, fragmentSource string) (uint32, error) {
 	// Compile the vertex and fragment shaders
 	vertex, err := compileShader(gl.VERTEX_SHADER, vertexSource)
 	if err != nil {
@@ -83,20 +83,4 @@ func linkProgram(program uint32) error {
 	}
 
 	return nil
-}
-
-// Lerp performs linear interpolation between the starting and ending values,
-// based on the given amount.
-func lerp(start, end, amount float64) float64 {
-	return start*(1.0-amount) + end*amount
-}
-
-// Clamp restricts a value between a minimum and maximum value.
-func clamp(value, min, max float64) float64 {
-	if value < min {
-		return min
-	} else if value > max {
-		return max
-	}
-	return value
 }
