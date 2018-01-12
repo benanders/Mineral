@@ -30,7 +30,7 @@ func (a AABB) IsOverlapping(b AABB) bool {
 }
 
 // Overlap returns the overlap between two colliding AABBs along each axis.
-func (a AABB) Overlap(b AABB) mgl32.Vec3 {
+func (a AABB) Overlap(b AABB) (float32, float32, float32) {
 	var x, y, z float32
 
 	// X axis overlap
@@ -50,11 +50,9 @@ func (a AABB) Overlap(b AABB) mgl32.Vec3 {
 	// Z axis overlap
 	if a.MaxZ()-b.MinZ() < b.MaxZ()-a.MinZ() {
 		z = a.MaxZ() - b.MinZ()
-		println("positive", z)
 	} else {
 		z = a.MinZ() - b.MaxZ()
-		println("negative", z)
 	}
 
-	return mgl32.Vec3{x, y, z}
+	return x, y, z
 }

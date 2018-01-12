@@ -6,7 +6,7 @@ import (
 	"github.com/benanders/mineral/util"
 	"github.com/benanders/mineral/world"
 
-	"github.com/chewxy/math32"
+	m32 "github.com/chewxy/math32"
 	"github.com/go-gl/mathgl/mgl32"
 )
 
@@ -30,10 +30,8 @@ type Entity struct {
 	moveSpeed float32 // The speed at which the entity can move around
 	lookSpeed float32 // The speed at which the entity can look around
 
-	// Since we apply entity movement along each axis separately in order to
-	// perform collision detection, we aggregate all movement over an update
-	// tick before applying the movement delta and performing collision
-	// detection.
+	// We aggregate all movement over an update tick before applying the
+	// movement delta and performing collision detection.
 	//
 	// `moveDelta` is in world coordinate space, so we can just sum the current
 	// position with the delta to get the new position.
@@ -91,114 +89,79 @@ func (e *Entity) Look(delta mgl32.Vec2) {
 func (e *Entity) updateAxes() {
 	// The movement vectors are calculated as a conversion from cylindrical to
 	// rectangular Cartesian coordinates
-	sinX, cosX := math32.Sincos(e.Rotation.X())
+	sinX, cosX := m32.Sincos(e.Rotation.X())
 	e.forward = mgl32.Vec3{sinX, 0.0, -cosX}
 	e.right = mgl32.Vec3{cosX, 0.0, sinX}
 	e.up = mgl32.Vec3{0.0, 1.0, 0.0}
 
 	// The sight vector is calculated as a conversion from spherical to
 	// rectangular Cartesian coordinates
-	sinY, cosY := math32.Sincos(e.Rotation.Y())
+	sinY, cosY := m32.Sincos(e.Rotation.Y())
 	e.Sight = mgl32.Vec3{cosY * -sinX, sinY, cosY * cosX}
 }
 
-// ApplyMovementAndResolveCollisions is called once per update tick to apply
-// the movement delta that has accumulated since the last update frame, and
-// resolve collisions with the world and other entities.
-//
-// See https://gamedev.stackexchange.com/a/71123 for an explanation on how
-// collision detection is performed.
-func (e *Entity) ApplyMovementAndResolveCollisions(world *world.World) {
-	// Only apply movement if there was some movement
-	epsilon := float32(0.00001)
-	if math32.Abs(e.moveDelta.X()) < epsilon &&
-		math32.Abs(e.moveDelta.Y()) < epsilon &&
-		math32.Abs(e.moveDelta.Z()) < epsilon {
-		return
-	}
-
-	// A list of the 3 axes we have to apply movement to and resolve collisions
-	// along
-	axes := [...]mgl32.Vec3{
-		mgl32.Vec3{1.0, 0.0, 0.0},
-		mgl32.Vec3{0.0, 1.0, 0.0},
-		mgl32.Vec3{0.0, 0.0, 1.0}}
-
-	// Iterate over each axis
-	for _, axis := range axes {
-		// Move the player along the axis
-		e.AABB.Offset(mgl32.Vec3{
-			e.moveDelta.X() * axis.X(),
-			e.moveDelta.Y() * axis.Y(),
-			e.moveDelta.Z() * axis.Z()})
-
-		// Resolve collisions along the axis
-		e.resolveBlockCollisions(world, axis)
-	}
-
-	// Reset the movement delta now that it's been applied
-	e.moveDelta = mgl32.Vec3{}
-}
-
 // ResolveBlockCollisions checks to see if the entity is colliding with any
-// blocks in the world, and moves the entity out of those blocks along the
-// given axis.
-func (e *Entity) resolveBlockCollisions(world *world.World, axis mgl32.Vec3) {
+// solid blocks in the world, and if so resolves the collision.
+func (e *Entity) ResolveBlockCollisions(w *world.World) {
+	e.AABB.Offset(e.moveDelta)
+	e.moveDelta = mgl32.Vec3{}
+
 	// Calculate the bounds of the entity's AABB in block coordinates
-	ax, bx := math32.Floor(e.AABB.MinX()), math32.Floor(e.AABB.MaxX())
-	ay, by := math32.Floor(e.AABB.MinY()), math32.Floor(e.AABB.MaxY())
-	az, bz := math32.Floor(e.AABB.MinZ()), math32.Floor(e.AABB.MaxZ())
+	ax, bx := int(m32.Floor(e.AABB.MinX())), int(m32.Floor(e.AABB.MaxX()))
+	ay, by := int(m32.Floor(e.AABB.MinY())), int(m32.Floor(e.AABB.MaxY()))
+	az, bz := int(m32.Floor(e.AABB.MinZ())), int(m32.Floor(e.AABB.MaxZ()))
 
 	// Iterate over all blocks that overlap the entity
-	for x := int(ax); x <= int(bx); x++ {
-		for y := int(ay); y <= int(by); y++ {
-			for z := int(az); z <= int(bz); z++ {
-				e.resolveBlockCollision(world, axis, x, y, z)
+	for x := ax; x <= bx; x++ {
+		for y := ay; y <= by; y++ {
+			for z := az; z <= bz; z++ {
+				e.resolveBlockCollision(w, x, y, z)
 			}
 		}
 	}
 }
 
 // ResolveBlockCollision checks to see if the entity is colliding with the
-// block at the given coordinate, and if so moves the entity out of the block.
-func (e *Entity) resolveBlockCollision(w *world.World, axis mgl32.Vec3,
-	x, y, z int) {
+// given block, and if so resolves the collision.
+func (e *Entity) resolveBlockCollision(w *world.World, x, y, z int) {
 	// Get the chunk containing the block
 	p, q, cx, cy, cz := world.Chunked(x, y, z)
 	chunk := w.FindChunk(p, q)
 
-	// Don't bother detecting collisions if the chunk's block data isn't loaded
+	// Don't bother detecting collisions with chunks that haven't loaded
 	if chunk == nil || chunk.Blocks == nil {
 		return
 	}
 
-	// Check the block we're attempting to collide with is actually collidable
+	// Check the block we're colliding against is solid
 	block := chunk.Blocks.At(cx, cy, cz)
 	if !block.IsCollidable() {
 		return
 	}
 
 	// Resolve a collision with the block
-	blockAABB := block.AABB(p, q, cx, cy, cz)
-	e.resolveCollision(blockAABB, axis)
+	aabb := block.AABB(p, q, cx, cy, cz)
+	e.resolveCollision(aabb)
 }
 
 // ResolveCollision checks to see if the entity is colliding with the given
-// AABB, and if so moves the entity out of that AABB.
-func (e *Entity) resolveCollision(other util.AABB, axis mgl32.Vec3) {
-	// Don't do anything if the AABBs don't overlap
+// AABB, and if so resolves the collision.
+func (e *Entity) resolveCollision(other util.AABB) {
+	// Check the entity's AABB overlaps with the other AABB
 	if !e.AABB.IsOverlapping(other) {
 		return
 	}
 
-	// Resolve along the desired axis
-	// println("axis", axis.X(), axis.Y(), axis.Z())
-	depth := e.AABB.Overlap(other)
-	// println("depth", depth.X(), depth.Y(), depth.Z())
-	resolution := mgl32.Vec3{
-		-depth.X() * axis.X(),
-		-depth.Y() * axis.Y(),
-		-depth.Z() * axis.Z()}
-	println("resolution", resolution.X(), resolution.Y(), resolution.Z())
-	e.AABB.Offset(resolution)
+	// Resolve the collision along the least penetrating axis
+	dx, dy, dz := e.AABB.Overlap(other)
+	if m32.Abs(dx) < m32.Abs(dy) && m32.Abs(dx) < m32.Abs(dz) {
+		// Resolve along the x axis
+		e.AABB.Offset(mgl32.Vec3{-dx, 0.0, 0.0})
+	} else if m32.Abs(dy) < m32.Abs(dx) && m32.Abs(dy) < m32.Abs(dz) {
+		// Resolve along the y axis
+		e.AABB.Offset(mgl32.Vec3{0.0, -dy, 0.0})
+	} else if m32.Abs(dz) < m32.Abs(dx) && m32.Abs(dz) < m32.Abs(dy) {
+		// Resolve along the z axis
+		e.AABB.Offset(mgl32.Vec3{0.0, 0.0, -dz})
+	}
 }
