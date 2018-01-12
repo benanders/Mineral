@@ -100,22 +100,49 @@ func (e *Entity) updateAxes() {
 	e.Sight = mgl32.Vec3{cosY * -sinX, sinY, cosY * cosX}
 }
 
+// ApplyMovementAndResolveCollisions applies the accumulated movement delta
+// that's been collected since the previous update tick, and resolves
+// collisions between blocks in the world and the entity.
+func (e *Entity) ApplyMovementAndResolveCollisions(w *world.World) {
+	// X axis
+	e.AABB.Offset(mgl32.Vec3{e.moveDelta.X(), 0.0, 0.0})
+	e.resolveBlockCollisions(w, axisX)
+
+	// Y axis
+	e.AABB.Offset(mgl32.Vec3{0.0, e.moveDelta.Y(), 0.0})
+	e.resolveBlockCollisions(w, axisY)
+
+	// Z axis
+	e.AABB.Offset(mgl32.Vec3{0.0, 0.0, e.moveDelta.Z()})
+	e.resolveBlockCollisions(w, axisZ)
+
+	// Reset the movement delta
+	e.moveDelta = mgl32.Vec3{}
+}
+
+// CollisionAxis represents an axis along which we can resolve a collision.
+type collisionAxis uint
+
+const (
+	// The three possible collision axes are the x, y, and z axes.
+	axisX collisionAxis = iota
+	axisY
+	axisZ
+)
+
 // ResolveBlockCollisions checks to see if the entity is colliding with any
 // solid blocks in the world, and if so resolves the collision.
-func (e *Entity) ResolveBlockCollisions(w *world.World) {
-	e.AABB.Offset(e.moveDelta)
-	e.moveDelta = mgl32.Vec3{}
-
+func (e *Entity) resolveBlockCollisions(w *world.World, axis collisionAxis) {
 	// Calculate the bounds of the entity's AABB in block coordinates
-	ax, bx := int(m32.Floor(e.AABB.MinX())), int(m32.Floor(e.AABB.MaxX()))
-	ay, by := int(m32.Floor(e.AABB.MinY())), int(m32.Floor(e.AABB.MaxY()))
-	az, bz := int(m32.Floor(e.AABB.MinZ())), int(m32.Floor(e.AABB.MaxZ()))
+	ax, bx := int(m32.Floor(e.AABB.MinX())), int(m32.Ceil(e.AABB.MaxX()))
+	ay, by := int(m32.Floor(e.AABB.MinY())), int(m32.Ceil(e.AABB.MaxY()))
+	az, bz := int(m32.Floor(e.AABB.MinZ())), int(m32.Ceil(e.AABB.MaxZ()))
 
 	// Iterate over all blocks that overlap the entity
 	for x := ax; x <= bx; x++ {
 		for y := ay; y <= by; y++ {
 			for z := az; z <= bz; z++ {
-				e.resolveBlockCollision(w, x, y, z)
+				e.resolveBlockCollision(w, axis, x, y, z)
 			}
 		}
 	}
@@ -123,7 +150,8 @@ func (e *Entity) ResolveBlockCollisions(w *world.World) {
 
 // ResolveBlockCollision checks to see if the entity is colliding with the
 // given block, and if so resolves the collision.
-func (e *Entity) resolveBlockCollision(w *world.World, x, y, z int) {
+func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
+	x, y, z int) {
 	// Get the chunk containing the block
 	p, q, cx, cy, cz := world.Chunked(x, y, z)
 	chunk := w.FindChunk(p, q)
@@ -141,27 +169,25 @@ func (e *Entity) resolveBlockCollision(w *world.World, x, y, z int) {
 
 	// Resolve a collision with the block
 	aabb := block.AABB(p, q, cx, cy, cz)
-	e.resolveCollision(aabb)
+	e.resolveCollision(aabb, axis)
 }
 
 // ResolveCollision checks to see if the entity is colliding with the given
 // AABB, and if so resolves the collision.
-func (e *Entity) resolveCollision(other util.AABB) {
-	// Check the entity's AABB overlaps with the other AABB
-	if !e.AABB.IsOverlapping(other) {
+func (e *Entity) resolveCollision(other util.AABB, axis collisionAxis) {
+	// Check the entity's AABB intersects the other AABB
+	if !e.AABB.Intersects(other) {
 		return
 	}
 
-	// Resolve the collision along the least penetrating axis
-	dx, dy, dz := e.AABB.Overlap(other)
-	if m32.Abs(dx) < m32.Abs(dy) && m32.Abs(dx) < m32.Abs(dz) {
-		// Resolve along the x axis
-		e.AABB.Offset(mgl32.Vec3{-dx, 0.0, 0.0})
-	} else if m32.Abs(dy) < m32.Abs(dx) && m32.Abs(dy) < m32.Abs(dz) {
-		// Resolve along the y axis
-		e.AABB.Offset(mgl32.Vec3{0.0, -dy, 0.0})
-	} else if m32.Abs(dz) < m32.Abs(dx) && m32.Abs(dz) < m32.Abs(dy) {
-		// Resolve along the z axis
-		e.AABB.Offset(mgl32.Vec3{0.0, 0.0, -dz})
+	// Resolve the collision along the specified axis
+	var offset mgl32.Vec3
+	if axis == axisX {
+		offset = mgl32.Vec3{-e.AABB.OverlapX(other), 0.0, 0.0}
+	} else if axis == axisY {
+		offset = mgl32.Vec3{0.0, -e.AABB.OverlapY(other), 0.0}
+	} else if axis == axisZ {
+		offset = mgl32.Vec3{0.0, 0.0, -e.AABB.OverlapZ(other)}
 	}
+	e.AABB.Offset(offset)
 }

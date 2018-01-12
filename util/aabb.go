@@ -1,6 +1,8 @@
 package util
 
 import (
+	"math"
+
 	"github.com/go-gl/mathgl/mgl32"
 )
 
@@ -22,37 +24,32 @@ func (a AABB) MaxZ() float32 { return a.Center.Z() + a.Size.Z()/2.0 }
 // Offset moves the position of the AABB by the given delta.
 func (a *AABB) Offset(delta mgl32.Vec3) { a.Center = a.Center.Add(delta) }
 
-// IsOverlapping returns true if the two AABBs overlap.
-func (a AABB) IsOverlapping(b AABB) bool {
+// Intersects returns true if the two AABBs overlap.
+func (a AABB) Intersects(b AABB) bool {
 	return a.MinX() < b.MaxX() && a.MaxX() > b.MinX() &&
 		a.MinY() < b.MaxY() && a.MaxY() > b.MinY() &&
 		a.MinZ() < b.MaxZ() && a.MaxZ() > b.MinZ()
 }
 
-// Overlap returns the overlap between two colliding AABBs along each axis.
-func (a AABB) Overlap(b AABB) (float32, float32, float32) {
-	var x, y, z float32
-
-	// X axis overlap
+func (a AABB) OverlapX(b AABB) float32 {
+	// Due to floating point precision error, we need to increase the overlap
+	// slightly in order to resolve collisions properly
 	if a.MaxX()-b.MinX() < b.MaxX()-a.MinX() {
-		x = a.MaxX() - b.MinX()
-	} else {
-		x = a.MinX() - b.MaxX()
+		return math.Nextafter32(a.MaxX()-b.MinX(), float32(math.Inf(1)))
 	}
+	return math.Nextafter32(a.MinX()-b.MaxX(), float32(math.Inf(-1)))
+}
 
-	// Y axis overlap
+func (a AABB) OverlapY(b AABB) float32 {
 	if a.MaxY()-b.MinY() < b.MaxY()-a.MinY() {
-		y = a.MaxY() - b.MinY()
-	} else {
-		y = a.MinY() - b.MaxY()
+		return math.Nextafter32(a.MaxY()-b.MinY(), float32(math.Inf(1)))
 	}
+	return math.Nextafter32(a.MinY()-b.MaxY(), float32(math.Inf(-1)))
+}
 
-	// Z axis overlap
+func (a AABB) OverlapZ(b AABB) float32 {
 	if a.MaxZ()-b.MinZ() < b.MaxZ()-a.MinZ() {
-		z = a.MaxZ() - b.MinZ()
-	} else {
-		z = a.MinZ() - b.MaxZ()
+		return math.Nextafter32(a.MaxZ()-b.MinZ(), float32(math.Inf(1)))
 	}
-
-	return x, y, z
+	return math.Nextafter32(a.MinZ()-b.MaxZ(), float32(math.Inf(-1)))
 }

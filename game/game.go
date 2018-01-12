@@ -70,7 +70,7 @@ func (g *Game) Update() {
 	g.world.Update()
 
 	// Resolve collisions between the player and the world
-	g.player.ResolveBlockCollisions(g.world)
+	g.player.ApplyMovementAndResolveCollisions(g.world)
 
 	// Update the camera, making it follow the position and look direction of
 	// the player
