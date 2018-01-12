@@ -6,6 +6,7 @@ import (
 
 	"github.com/benanders/mineral/camera"
 	"github.com/benanders/mineral/util"
+	"github.com/chewxy/math32"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
@@ -24,9 +25,9 @@ const (
 
 // World stores all the loaded chunks and loads/unloads chunks as required.
 type World struct {
-	RenderRadius uint               // Current render distance
-	chunks       []Chunk            // All loaded chunks
-	channels     []chan interface{} // Channels to goroutines loading chunks
+	RenderRadius uint                // Current render distance
+	chunks       map[ChunkPos]*Chunk // All loaded chunks
+	channels     []chan interface{}  // Channels to goroutines loading chunks
 
 	program    uint32
 	mvpUnf     int32
@@ -86,7 +87,10 @@ func New(renderRadius uint) *World {
 	normalAttr := uint32(gl.GetAttribLocation(program, gl.Str("normal\x00")))
 	uvAttr := uint32(gl.GetAttribLocation(program, gl.Str("uv\x00")))
 
-	return &World{renderRadius, make([]Chunk, 0), make([]chan interface{}, 0),
+	return &World{
+		renderRadius,
+		make(map[ChunkPos]*Chunk, 0),
+		make([]chan interface{}, 0),
 		program, mvpUnf, posAttr, normalAttr, uvAttr}
 }
 
@@ -106,6 +110,28 @@ func (w *World) Destroy() {
 	}
 }
 
+// Gets the coordinates of the chunk and block that contain the given world
+// coordinate.
+func Chunked(wx, wy, wz int) (p, q, x, y, z int) {
+	// Use floor to always round down towards negative infinity. Otherwise the
+	// 4 chunks around the centre of the world would have a (p, q) of (0, 0)
+	p = int(math32.Floor(float32(wx) / float32(ChunkWidth)))
+	q = int(math32.Floor(float32(wz) / float32(ChunkDepth)))
+
+	// Go's modulo operator is stupid and returns negative numbers, so we fix
+	// this by adding on `ChunkWidth` or `ChunkDepth`
+	x = wx % ChunkWidth
+	if x < 0 {
+		x += ChunkWidth
+	}
+	y = wy
+	z = wz % ChunkDepth
+	if z < 0 {
+		z += ChunkDepth
+	}
+	return
+}
+
 // VertexLoadResult stores the data generated when a chunk's vertex data is
 // reloaded from its existing block data.
 type vertexLoadResult struct {
@@ -117,21 +143,21 @@ type vertexLoadResult struct {
 // reload. If the chunk isn't yet loaded, then does nothing (doesn't load it).
 func (w *World) reloadChunk(p, q int) {
 	// Find the chunk
-	chunk := w.findChunk(p, q)
-	if chunk == nil || chunk.blocks == nil {
+	chunk := w.FindChunk(p, q)
+	if chunk == nil || chunk.Blocks == nil {
 		return // Chunk isn't loaded
 	}
 
 	// Copy block data into a new array, in case the chunk is unloaded while
 	// we're in the middle of loading it
-	blocks := make([]blockType, len(chunk.blocks))
-	copy(blocks, chunk.blocks)
+	copiedBlocks := newBlockData()
+	copy(copiedBlocks, chunk.Blocks)
 
 	// Load the vertex data on
 	ch := make(chan interface{})
 	w.channels = append(w.channels, ch)
 	go (func() {
-		vertices := genVertices(p, q, blocks)
+		vertices := genVertices(p, q, copiedBlocks)
 		ch <- vertexLoadResult{p, q, vertices}
 	})()
 }
@@ -140,7 +166,7 @@ func (w *World) reloadChunk(p, q int) {
 // and lighting data is all loaded at once.
 type completeLoadResult struct {
 	p, q     int
-	blocks   blockData
+	blocks   BlockData
 	vertices []float32
 }
 
@@ -148,7 +174,7 @@ type completeLoadResult struct {
 // chunk is already loaded, then does nothing (doesn't reload its data).
 func (w *World) LoadChunk(p, q int) {
 	// Check the chunk isn't already loaded
-	if chunk := w.findChunk(p, q); chunk != nil {
+	if chunk := w.FindChunk(p, q); chunk != nil {
 		return
 	}
 
@@ -182,15 +208,15 @@ func (w *World) handleFinishedTask(result interface{}) {
 	case completeLoadResult:
 		// Loaded all information to do with a chunk
 		chunk := newChunk(r.p, r.q)
-		chunk.blocks = r.blocks
-		w.uploadChunk(&chunk, r.vertices)
-		w.chunks = append(w.chunks, chunk)
-
+		chunk.Blocks = r.blocks
+		w.uploadChunk(chunk, r.vertices)
+		w.chunks[ChunkPos{r.p, r.q}] = chunk
 	case vertexLoadResult:
 		// Reloaded a chunk's vertex data
-		chunk := w.findChunk(r.p, r.q)
+		chunk := w.FindChunk(r.p, r.q)
 		if chunk == nil {
-			return // Chunk was unloaded while we were loading its data
+			// Chunk was unloaded while we were loading its data; do nothing
+			return
 		}
 		w.uploadChunk(chunk, r.vertices)
 	}
@@ -234,11 +260,9 @@ func (w *World) uploadChunk(chunk *Chunk, vertices []float32) {
 
 // FindChunk checks to see if the chunk at the given coordinates is already
 // loaded, and if so returns a pointer to it. Otherwise, returns nil.
-func (w *World) findChunk(p, q int) *Chunk {
-	for _, chunk := range w.chunks {
-		if chunk.p == p && chunk.q == q {
-			return &chunk
-		}
+func (w *World) FindChunk(p, q int) *Chunk {
+	if chunk, ok := w.chunks[ChunkPos{p, q}]; ok {
+		return chunk
 	}
 	return nil
 }
@@ -270,25 +294,30 @@ func (w *World) Render(info RenderInfo) {
 	gl.Disable(gl.DEPTH_TEST)
 }
 
+// ChunkPos stores the position of a chunk.
+type ChunkPos struct {
+	p, q int
+}
+
 // Chunk stores information associated with a chunk, including OpenGL rendering
 // information, block data, vertex data, and lighting data.
 type Chunk struct {
-	p, q        int       // The position of the chunk, in chunk coordinates
-	blocks      blockData // The cached block data for the chunk
+	P, Q        int       // The position of the chunk, in chunk coordinates
+	Blocks      BlockData // The cached block data for the chunk
 	numVertices int32     // The number of vertices to render
 	vao, vbo    uint32    // OpenGL buffers
 }
 
 // NewChunk creates a new, empty chunk with no block, rendering, or lighting
 // data.
-func newChunk(p, q int) Chunk {
+func newChunk(p, q int) *Chunk {
 	// Create a VAO and VBO, but don't upload any data
 	var vao, vbo uint32
 	gl.GenVertexArrays(1, &vao)
 	gl.BindVertexArray(vao)
 	gl.GenBuffers(1, &vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	return Chunk{p: p, q: q, vao: vao, vbo: vbo}
+	return &Chunk{P: p, Q: q, vao: vao, vbo: vbo}
 }
 
 // Destroy releases all resources allocated when creating a chunk.
@@ -300,7 +329,7 @@ func (c *Chunk) Destroy() {
 // Render the chunk to the screen.
 func (c *Chunk) render(info RenderInfo) {
 	// Don't bother rendering an unloaded chunk
-	if c.blocks == nil {
+	if c.Blocks == nil {
 		return
 	}
 

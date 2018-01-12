@@ -1,20 +1,27 @@
 package world
 
+import (
+	"github.com/benanders/mineral/util"
+	"github.com/go-gl/mathgl/mgl32"
+)
+
 // BlockData represents an array of blocks within a chunk.
-type blockData []blockType
+type BlockData []BlockType
 
 // NewBlockData creates a new blocks array for a chunk, with length equal to
 // the number of blocks within a chunk.
-func newBlockData() blockData {
-	return make([]blockType, ChunkWidth*ChunkHeight*ChunkDepth)
+func newBlockData() BlockData {
+	return make([]BlockType, ChunkWidth*ChunkHeight*ChunkDepth)
 }
 
 // At returns the block at the given coordinate within the block list. If the
 // given coordinates are outside the block list's boundaries, then returns
-func (b blockData) at(x, y, z int) *blockType {
+func (b BlockData) At(x, y, z int) *BlockType {
 	if x < 0 || x >= ChunkWidth || y < 0 || y >= ChunkHeight || z < 0 ||
 		z >= ChunkDepth {
-		temp := blockAir
+		// Return an air block if the coordinate is outside the block data's
+		// available range
+		temp := BlockAir
 		return &temp
 	} else {
 		return &b[y*ChunkWidth*ChunkDepth+z*ChunkWidth+x]
@@ -22,19 +29,19 @@ func (b blockData) at(x, y, z int) *blockType {
 }
 
 // BlockType is the type of a block within the world.
-type blockType uint
+type BlockType uint
 
 // All block types.
 const (
-	blockAir blockType = iota
-	blockStone
-	blockDirt
-	blockGrass
+	BlockAir BlockType = iota
+	BlockStone
+	BlockDirt
+	BlockGrass
 )
 
 // IsTransparent tells us whether a block is at least partially transparent or
 // not.
-func (b blockType) isTransparent() bool {
+func (b BlockType) IsTransparent() bool {
 	lookup := [...]bool{
 		true,  // Air
 		false, // Stone
@@ -44,8 +51,34 @@ func (b blockType) isTransparent() bool {
 	return lookup[b]
 }
 
-// BlockFace represents one of the possible 6 faces of a block, numbered from 0
-// to 5.
+// IsCollidable tells us whether we have to test for collisions against a
+// block.
+func (b BlockType) IsCollidable() bool {
+	lookup := [...]bool{
+		false, // Air
+		true,  // Stone
+		true,  // Dirt
+		true,  // Grass
+	}
+	return lookup[b]
+}
+
+// AABB returns an axis aligned bounding box for the block that we can check
+// for collisions against.
+//
+// Blocks return different AABBs depending on their type (e.g. fences). This
+// function is only ever called for blocks that are collidable.
+func (b BlockType) AABB(p, q, x, y, z int) util.AABB {
+	// We haven't implemented any special blocks yet, so just return a square
+	// at the given location
+	rx, ry, rz := float32(p*ChunkWidth+x)+0.5, float32(y)+0.5,
+		float32(q*ChunkDepth+z)+0.5
+	return util.AABB{
+		Center: mgl32.Vec3{rx, ry, rz},
+		Size:   mgl32.Vec3{1.0, 1.0, 1.0}}
+}
+
+// BlockFace represents one of the possible 6 faces of a block.
 type blockFace uint
 
 // All block faces.

@@ -12,7 +12,7 @@ type InputCtrl struct {
 	mouseX, mouseY int32     // Accumulates mouse movement over a frame
 }
 
-// NewInputCtrl creates a new input controller instance with the given walk and
+// NewInputCtrl creates a new input controller instance with the given move and
 // look speeds.
 func NewInputCtrl() *InputCtrl {
 	return &InputCtrl{}
@@ -34,6 +34,14 @@ func (c *InputCtrl) HandleEvent(evt sdl.Event) {
 
 // Update implements the `Controller` interface.
 func (c *InputCtrl) Update(entity Controllable) {
+	// Update the entity's look direction based on mouse input. We do this
+	// first so that the entity's local coordinate system is updated before
+	// applying movement
+	horizontalDelta := float32(c.mouseX)
+	verticalDelta := float32(c.mouseY)
+	entity.Look(mgl32.Vec2{horizontalDelta, verticalDelta})
+	c.mouseX, c.mouseY = 0.0, 0.0
+
 	// Update position based on keyboard input
 	x, y, z := float32(0.0), float32(0.0), float32(0.0)
 	if c.IsKeyDown[sdl.SCANCODE_W] {
@@ -54,11 +62,5 @@ func (c *InputCtrl) Update(entity Controllable) {
 	if c.IsKeyDown[sdl.SCANCODE_LSHIFT] || c.IsKeyDown[sdl.SCANCODE_RSHIFT] {
 		y -= 1.0
 	}
-	entity.Walk(mgl32.Vec3{x, y, z})
-
-	// Update the entity's look direction based on mouse input
-	horizontalDelta := float32(c.mouseX)
-	verticalDelta := float32(c.mouseY)
-	entity.Look(mgl32.Vec2{horizontalDelta, verticalDelta})
-	c.mouseX, c.mouseY = 0.0, 0.0
+	entity.Move(mgl32.Vec3{x, y, z})
 }

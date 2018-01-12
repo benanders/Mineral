@@ -1,7 +1,6 @@
 package game
 
 import (
-	"math"
 	"time"
 
 	"github.com/benanders/mineral/camera"
@@ -17,13 +16,13 @@ import (
 // Game stores all the required state information while the game is running.
 type Game struct {
 	window     *sdl.Window
-	startTime  time.Time
 	player     *entity.Player
 	playerCtrl ctrl.Controller
 	camera     *camera.Camera
 	sky        *sky.Sky
 	world      *world.World
 
+	startTime time.Time
 	worldTime float64
 }
 
@@ -43,11 +42,10 @@ func New(window *sdl.Window) *Game {
 	g.playerCtrl = ctrl.NewInputCtrl()
 
 	// Camera
-	fov := 60.0 * float32(math.Pi) / 180.0 // 60 degrees in radians
 	w, h := sdl.GLGetDrawableSize(window)
 	aspect := float32(w) / float32(h)
 	g.camera = &camera.Camera{}
-	g.camera.Perspective(fov, aspect, 0.1, 256.0)
+	g.camera.Perspective(camera.DefaultFov, aspect, 0.1, 256.0)
 	g.camera.Follow(g.player)
 
 	return &g
@@ -61,20 +59,23 @@ func (g *Game) Destroy() {
 
 // HandleEvent processes a user input event.
 func (g *Game) HandleEvent(evt sdl.Event) {
-	// Pass the event onto the player controller
+	// Pass the event onto the player's input controller
 	g.playerCtrl.HandleEvent(evt)
 }
 
-// Update advances the game state. It's called at a fixed time step, in order to
-// simplify some of the mechanics of the code.
+// Update advances the game state. It's called at a fixed time step, in order
+// to simplify some of the mechanics of the code.
 func (g *Game) Update() {
+	// Update the world
+	g.world.Update()
+
+	// Update the player's movement
+	g.player.ApplyMovementAndResolveCollisions(g.world)
+
 	// Update the camera, making it follow the position and look direction of
 	// the player
 	g.playerCtrl.Update(g.player)
 	g.camera.Follow(g.player)
-
-	// Update the world
-	g.world.Update()
 
 	// For debugging only
 	if g.playerCtrl.(*ctrl.InputCtrl).IsKeyDown[sdl.SCANCODE_UP] {

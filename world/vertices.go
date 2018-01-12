@@ -6,7 +6,7 @@ const valuesPerVertex = 8
 
 // GenVertices takes the block data for a chunk and generates the chunk's
 // vertex data, based on the faces of the blocks that are visible.
-func genVertices(p, q int, blocks blockData) []float32 {
+func genVertices(p, q int, blocks BlockData) []float32 {
 	// Create the vertices array
 	vertices := make([]float32, 0)
 
@@ -24,9 +24,9 @@ func genVertices(p, q int, blocks blockData) []float32 {
 
 // GenVerticesForBlock determines which faces of the block at the given
 // coordinates are visible, and adds them to the vertex data.
-func genVerticesForBlock(vertices *[]float32, blocks blockData, x, y, z int) {
+func genVerticesForBlock(vertices *[]float32, blocks BlockData, x, y, z int) {
 	// Don't generate vertices for air
-	if block := blocks.at(x, y, z); *block == blockAir {
+	if block := blocks.At(x, y, z); *block == BlockAir {
 		return
 	}
 
@@ -38,7 +38,7 @@ func genVerticesForBlock(vertices *[]float32, blocks blockData, x, y, z int) {
 
 		// Only generate vertex data if the block next to this face is
 		// semi-transparent
-		if blocks.at(bx, by, bz).isTransparent() {
+		if blocks.At(bx, by, bz).IsTransparent() {
 			genVerticesForFace(vertices, blocks, x, y, z, face)
 		}
 	}
@@ -46,8 +46,8 @@ func genVerticesForBlock(vertices *[]float32, blocks blockData, x, y, z int) {
 
 // GenVerticesForFace adds the vertex data for a visible face of a block to
 // the vertices list.
-func genVerticesForFace(vertices *[]float32, blocks blockData,
-	x, y, z int, face blockFace) {
+func genVerticesForFace(vertices *[]float32, blocks BlockData, x, y, z int,
+	face blockFace) {
 	// All vertices that make up a cube
 	cubeVertices := [...][3]float32{
 		{0.0, 0.0, 1.0}, // Left,  bottom, front

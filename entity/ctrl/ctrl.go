@@ -12,10 +12,10 @@ import (
 // Controllable is implemented by all entities that can be controlled with a
 // controller (e.g. the input controller, or one of the AI controllers).
 type Controllable interface {
-	// Walk moves the entity an amount forwards, right, and up. Delta values
-	// are normalised to 1, and should be multiplied by the entity's walk speed
+	// Move moves the entity an amount forwards, right, and up. Delta values
+	// are normalised to 1, and should be multiplied by the entity's move speed
 	// prior to applying the movement.
-	Walk(delta mgl32.Vec3)
+	Move(delta mgl32.Vec3)
 
 	// Look modifies the look direction of an entity by an amount. Delta values
 	// are normalised to 1, and should be multiplied by the entity's look speed

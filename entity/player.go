@@ -7,7 +7,7 @@ import (
 
 const (
 	// PlayerMoveSpeed is the default speed at which the player can move.
-	playerMoveSpeed = 0.05
+	playerMoveSpeed = 0.1
 
 	// PlayerLookSpeed is the default speed at which the player can look
 	// around.
@@ -38,6 +38,9 @@ func (p *Player) Sight() mgl32.Vec3 {
 
 // EyePosition implements the camera.ViewPoint interface for the player.
 func (p *Player) EyePosition() mgl32.Vec3 {
-	// The player's eye sits at the top, centre of their AABB
-	return p.AABB.Center.Add(mgl32.Vec3{0.0, p.AABB.Size.Y() / 2.0, 0.0})
+	// The player's eye sits slightly below the top of their AABB, 90% of the
+	// way up their body
+	return mgl32.Vec3{p.AABB.Center.X(),
+		p.AABB.Center.Y() + p.AABB.Size.Y()*0.4,
+		p.AABB.Center.Z()}
 }
