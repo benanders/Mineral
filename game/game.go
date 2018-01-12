@@ -4,8 +4,9 @@ import (
 	"math"
 	"time"
 
+	"github.com/benanders/mineral/camera"
 	"github.com/benanders/mineral/entity"
-	"github.com/benanders/mineral/render"
+	"github.com/benanders/mineral/entity/ctrl"
 	"github.com/benanders/mineral/sky"
 	"github.com/benanders/mineral/world"
 
@@ -17,9 +18,9 @@ import (
 type Game struct {
 	window     *sdl.Window
 	startTime  time.Time
-	player     *entity.Entity
-	playerCtrl *entity.InputCtrl
-	camera     *render.Camera
+	player     *entity.Player
+	playerCtrl ctrl.Controller
+	camera     *camera.Camera
 	sky        *sky.Sky
 	world      *world.World
 
@@ -38,14 +39,14 @@ func New(window *sdl.Window) *Game {
 	g.sky = sky.NewSky()
 
 	// Player, and the player's input controller
-	g.player = entity.NewEntity(mgl32.Vec3{0.0, 5.0, 0.0}, mgl32.Vec2{0.0, 0.0})
-	g.playerCtrl = entity.NewInputCtrl(0.05, 0.003)
+	g.player = entity.NewPlayer(mgl32.Vec3{0.0, 5.0, 0.0}, mgl32.Vec2{})
+	g.playerCtrl = ctrl.NewInputCtrl()
 
 	// Camera
 	fov := 60.0 * float32(math.Pi) / 180.0 // 60 degrees in radians
 	w, h := sdl.GLGetDrawableSize(window)
 	aspect := float32(w) / float32(h)
-	g.camera = &render.Camera{}
+	g.camera = &camera.Camera{}
 	g.camera.Perspective(fov, aspect, 0.1, 256.0)
 	g.camera.Follow(g.player)
 
@@ -76,9 +77,9 @@ func (g *Game) Update() {
 	g.world.Update()
 
 	// For debugging only
-	if g.playerCtrl.IsKeyDown[sdl.SCANCODE_UP] {
+	if g.playerCtrl.(*ctrl.InputCtrl).IsKeyDown[sdl.SCANCODE_UP] {
 		g.worldTime += 0.005
-	} else if g.playerCtrl.IsKeyDown[sdl.SCANCODE_DOWN] {
+	} else if g.playerCtrl.(*ctrl.InputCtrl).IsKeyDown[sdl.SCANCODE_DOWN] {
 		g.worldTime -= 0.005
 	}
 }
@@ -94,7 +95,5 @@ func (g *Game) Render() {
 		LookDir:      g.player.Sight()})
 
 	// Render the world
-	g.world.Render(world.RenderInfo{
-		Camera: g.camera,
-	})
+	g.world.Render(world.RenderInfo{Camera: g.camera})
 }

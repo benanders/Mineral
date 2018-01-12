@@ -4,7 +4,8 @@ import (
 	"log"
 	"unsafe"
 
-	"github.com/benanders/mineral/render"
+	"github.com/benanders/mineral/camera"
+	"github.com/benanders/mineral/util"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
@@ -35,8 +36,8 @@ type World struct {
 }
 
 const (
-	// ChunkVertexShader stores the source code for the vertex shader for the
-	// chunk rendering.
+	// ChunkVertexShader stores the source code of the vertex shader for chunk
+	// rendering.
 	chunkVertexShader = `
 #version 330
 
@@ -54,8 +55,8 @@ void main() {
 }	
 `
 
-	// ChunkFragmentShader stores the source code for the fragment shader for
-	// the chunk rendering.
+	// ChunkFragmentShader stores the source code of the fragment shader for
+	// chunk rendering.
 	chunkFragmentShader = `
 #version 330
 
@@ -71,7 +72,7 @@ void main() {
 // NewWorld creates a new world instance with no loaded chunks yet.
 func New(renderRadius uint) *World {
 	// Create the chunk rendering program
-	program, err := render.LoadShaders(chunkVertexShader, chunkFragmentShader)
+	program, err := util.LoadShaders(chunkVertexShader, chunkFragmentShader)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -231,9 +232,20 @@ func (w *World) uploadChunk(chunk *Chunk, vertices []float32) {
 		gl.PtrOffset(6*int(unsafe.Sizeof(float32(0.0)))))
 }
 
+// FindChunk checks to see if the chunk at the given coordinates is already
+// loaded, and if so returns a pointer to it. Otherwise, returns nil.
+func (w *World) findChunk(p, q int) *Chunk {
+	for _, chunk := range w.chunks {
+		if chunk.p == p && chunk.q == q {
+			return &chunk
+		}
+	}
+	return nil
+}
+
 // RenderInfo stores information required by the world for rendering.
 type RenderInfo struct {
-	Camera *render.Camera
+	Camera *camera.Camera
 }
 
 // Render draws all loaded chunks with vertex data to the screen.
@@ -256,17 +268,6 @@ func (w *World) Render(info RenderInfo) {
 	// Reset the OpenGL state
 	gl.Disable(gl.CULL_FACE)
 	gl.Disable(gl.DEPTH_TEST)
-}
-
-// FindChunk checks to see if the chunk at the given coordinates is already
-// loaded, and if so returns a pointer to it. Otherwise, returns nil.
-func (w *World) findChunk(p, q int) *Chunk {
-	for _, chunk := range w.chunks {
-		if chunk.p == p && chunk.q == q {
-			return &chunk
-		}
-	}
-	return nil
 }
 
 // Chunk stores information associated with a chunk, including OpenGL rendering

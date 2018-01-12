@@ -8,7 +8,8 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 
-	"github.com/benanders/mineral/render"
+	"github.com/benanders/mineral/camera"
+	"github.com/benanders/mineral/util"
 	"github.com/benanders/mineral/world"
 )
 
@@ -27,7 +28,7 @@ type Sky struct {
 // order to draw the sky.
 type RenderInfo struct {
 	WorldTime    float64
-	Camera       *render.Camera
+	Camera       *camera.Camera
 	RenderRadius uint
 	LookDir      mgl32.Vec3
 }
@@ -146,7 +147,7 @@ func (s *Sky) Destroy() {
 // resources for the sky plane.
 func newSkyPlane() skyPlane {
 	// Create the shader progarm
-	program, err := render.LoadShaders(skyVertexShader, skyFragmentShader)
+	program, err := util.LoadShaders(skyVertexShader, skyFragmentShader)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -231,7 +232,7 @@ func newSunrisePlane() sunrisePlane {
 		gl.Ptr(vertices[:]), gl.STATIC_DRAW)
 
 	// Create the shader progarm
-	program, err := render.LoadShaders(sunriseVertexShader, sunriseFragmentShader)
+	program, err := util.LoadShaders(sunriseVertexShader, sunriseFragmentShader)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -350,7 +351,7 @@ func getCelestialAngle(worldTime float64) float64 {
 // blue than the fog color.
 func getSkyColor(celestialAngle float64) color {
 	// Calculate the base color based on the temperature
-	temperature := clamp(worldTemperature/3.0, -1.0, 1.0)
+	temperature := util.Clamp64(worldTemperature/3.0, -1.0, 1.0)
 	base := hsvToRgb(
 		0.62222224-temperature*0.05,
 		0.5+temperature*0.1,
@@ -358,7 +359,7 @@ func getSkyColor(celestialAngle float64) color {
 
 	// Calculate the brightness multiplier
 	brightness := math.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = clamp(brightness, 0.0, 1.0)
+	brightness = util.Clamp64(brightness, 0.0, 1.0)
 
 	// Calculate the final color
 	return color{base.r * brightness, base.g * brightness,
@@ -401,7 +402,7 @@ func getFogColor(celestialAngle float64, renderRadius uint,
 	lookDir mgl32.Vec3) color {
 	// Calculate the brightness multiplier
 	brightness := math.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = clamp(brightness, 0.0, 1.0)
+	brightness = util.Clamp64(brightness, 0.0, 1.0)
 
 	// Calculate the fog color using some magic numbers
 	fogColor := color{
@@ -430,9 +431,9 @@ func getFogColor(celestialAngle float64, renderRadius uint,
 
 		// Modify the fog color based on the sunrise/sunset color
 		lookMultiplier *= alpha
-		fogColor.r = lerp(fogColor.r, sunriseColor.r, lookMultiplier)
-		fogColor.g = lerp(fogColor.g, sunriseColor.g, lookMultiplier)
-		fogColor.b = lerp(fogColor.b, sunriseColor.b, lookMultiplier)
+		fogColor.r = util.Lerp64(fogColor.r, sunriseColor.r, lookMultiplier)
+		fogColor.g = util.Lerp64(fogColor.g, sunriseColor.g, lookMultiplier)
+		fogColor.b = util.Lerp64(fogColor.b, sunriseColor.b, lookMultiplier)
 	}
 
 	// Modify the fog color with the sky color based on the render radius
@@ -550,20 +551,4 @@ func (s *Sky) Render(info RenderInfo) {
 
 	// Reset the OpenGL configuration
 	gl.Disable(gl.CULL_FACE)
-}
-
-// Lerp performs linear interpolation between the starting and ending values,
-// based on the given amount.
-func lerp(start, end, amount float64) float64 {
-	return start*(1.0-amount) + end*amount
-}
-
-// Clamp restricts a value between a minimum and maximum value.
-func clamp(value, min, max float64) float64 {
-	if value < min {
-		return min
-	} else if value > max {
-		return max
-	}
-	return value
 }

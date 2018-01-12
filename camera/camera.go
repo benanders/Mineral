@@ -1,10 +1,15 @@
-package render
+package camera
 
 import (
-	"github.com/benanders/mineral/entity"
-
 	"github.com/go-gl/mathgl/mgl32"
 )
+
+// ViewPoint tells the camera enough information about an object, such that the
+// scene can be viewed from that object's perspective.
+type ViewPoint interface {
+	Sight() mgl32.Vec3
+	EyePosition() mgl32.Vec3
+}
 
 // Camera keeps track of the model, view, projection, and orientation matrices,
 // which define the perspective from which the scene is viewed.
@@ -24,16 +29,16 @@ func (c *Camera) Perspective(fov, aspect, near, far float32) {
 
 // Follow updates the camera's view and orientation matrices so that the scene
 // is now viewed from the perspective of the given entity.
-func (c *Camera) Follow(entity *entity.Entity) {
-	pos := entity.Position()
-	sight := entity.Sight()
+func (c *Camera) Follow(viewPoint ViewPoint) {
+	eye := viewPoint.EyePosition()
+	sight := viewPoint.Sight()
+	up := mgl32.Vec3{0.0, 1.0, 0.0}
 
 	// Orientation matrix (no translation, just rotation)
-	orientation := mgl32.LookAtV(sight, mgl32.Vec3{0.0, 0.0, 0.0},
-		mgl32.Vec3{0.0, 1.0, 0.0})
+	orientation := mgl32.LookAtV(sight, mgl32.Vec3{0.0, 0.0, 0.0}, up)
 	c.Orientation = c.Projection.Mul4(orientation)
 
 	// View matrix (incorporates position)
-	view := mgl32.LookAtV(pos, pos.Sub(sight), mgl32.Vec3{0.0, 1.0, 0.0})
+	view := mgl32.LookAtV(eye, eye.Sub(sight), up)
 	c.View = c.Projection.Mul4(view)
 }

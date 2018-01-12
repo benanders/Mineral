@@ -9,7 +9,6 @@ func newBlockData() blockData {
 	return make([]blockType, ChunkWidth*ChunkHeight*ChunkDepth)
 }
 
-// Creates a new blocks list filled with air,
 // At returns the block at the given coordinate within the block list. If the
 // given coordinates are outside the block list's boundaries, then returns
 func (b blockData) at(x, y, z int) *blockType {
