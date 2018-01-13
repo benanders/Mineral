@@ -6,7 +6,7 @@ import (
 	"github.com/benanders/mineral/util"
 	"github.com/benanders/mineral/world"
 
-	m32 "github.com/chewxy/math32"
+	"github.com/chewxy/math32"
 	"github.com/go-gl/mathgl/mgl32"
 )
 
@@ -89,14 +89,14 @@ func (e *Entity) Look(delta mgl32.Vec2) {
 func (e *Entity) updateAxes() {
 	// The movement vectors are calculated as a conversion from cylindrical to
 	// rectangular Cartesian coordinates
-	sinX, cosX := m32.Sincos(e.Rotation.X())
+	sinX, cosX := math32.Sincos(e.Rotation.X())
 	e.forward = mgl32.Vec3{sinX, 0.0, -cosX}
 	e.right = mgl32.Vec3{cosX, 0.0, sinX}
 	e.up = mgl32.Vec3{0.0, 1.0, 0.0}
 
 	// The sight vector is calculated as a conversion from spherical to
 	// rectangular Cartesian coordinates
-	sinY, cosY := m32.Sincos(e.Rotation.Y())
+	sinY, cosY := math32.Sincos(e.Rotation.Y())
 	e.Sight = mgl32.Vec3{cosY * -sinX, sinY, cosY * cosX}
 }
 
@@ -112,7 +112,7 @@ const (
 
 // ApplyMovementAndResolveCollisions applies the accumulated movement delta
 // that's been collected since the previous update tick, and resolves
-// collisions between blocks in the world and the entity.
+// collisions between the entity and all solid blocks in the world.
 func (e *Entity) ApplyMovementAndResolveCollisions(w *world.World) {
 	// X axis
 	e.AABB.Offset(mgl32.Vec3{e.moveDelta.X(), 0.0, 0.0})
@@ -131,12 +131,13 @@ func (e *Entity) ApplyMovementAndResolveCollisions(w *world.World) {
 }
 
 // ResolveBlockCollisions checks to see if the entity is colliding with any
-// solid blocks in the world, and if so resolves the collision.
+// solid blocks in the world, and if so resolves the collision by moving
+// the entity along the specified axis.
 func (e *Entity) resolveBlockCollisions(w *world.World, axis collisionAxis) {
 	// Calculate the bounds of the entity's AABB in block coordinates
-	ax, bx := int(m32.Floor(e.AABB.MinX())), int(m32.Ceil(e.AABB.MaxX()))
-	ay, by := int(m32.Floor(e.AABB.MinY())), int(m32.Ceil(e.AABB.MaxY()))
-	az, bz := int(m32.Floor(e.AABB.MinZ())), int(m32.Ceil(e.AABB.MaxZ()))
+	ax, bx := int(math32.Floor(e.AABB.MinX())), int(math32.Ceil(e.AABB.MaxX()))
+	ay, by := int(math32.Floor(e.AABB.MinY())), int(math32.Ceil(e.AABB.MaxY()))
+	az, bz := int(math32.Floor(e.AABB.MinZ())), int(math32.Ceil(e.AABB.MaxZ()))
 
 	// Iterate over all blocks that overlap the entity
 	for x := ax; x <= bx; x++ {
@@ -149,7 +150,8 @@ func (e *Entity) resolveBlockCollisions(w *world.World, axis collisionAxis) {
 }
 
 // ResolveBlockCollision checks to see if the entity is colliding with the
-// given block, and if so resolves the collision.
+// given block, and if so resolves the collision with this block by moving
+// the entity along the specified axis.
 func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
 	x, y, z int) {
 	// Get the chunk containing the block
@@ -173,7 +175,8 @@ func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
 }
 
 // ResolveCollision checks to see if the entity is colliding with the given
-// AABB, and if so resolves the collision.
+// AABB, and if so resolves the collision by moving the entity along the
+// specified axis.
 func (e *Entity) resolveCollision(other util.AABB, axis collisionAxis) {
 	// Check the entity's AABB intersects the other AABB
 	if !e.AABB.Intersects(other) {
@@ -183,11 +186,11 @@ func (e *Entity) resolveCollision(other util.AABB, axis collisionAxis) {
 	// Resolve the collision along the specified axis
 	var offset mgl32.Vec3
 	if axis == axisX {
-		offset = mgl32.Vec3{-e.AABB.OverlapX(other), 0.0, 0.0}
+		offset = mgl32.Vec3{-e.AABB.IntersectionX(other), 0.0, 0.0}
 	} else if axis == axisY {
-		offset = mgl32.Vec3{0.0, -e.AABB.OverlapY(other), 0.0}
+		offset = mgl32.Vec3{0.0, -e.AABB.IntersectionY(other), 0.0}
 	} else if axis == axisZ {
-		offset = mgl32.Vec3{0.0, 0.0, -e.AABB.OverlapZ(other)}
+		offset = mgl32.Vec3{0.0, 0.0, -e.AABB.IntersectionZ(other)}
 	}
 	e.AABB.Offset(offset)
 }
