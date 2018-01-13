@@ -100,6 +100,16 @@ func (e *Entity) updateAxes() {
 	e.Sight = mgl32.Vec3{cosY * -sinX, sinY, cosY * cosX}
 }
 
+// CollisionAxis represents an axis along which we can resolve a collision.
+type collisionAxis uint
+
+const (
+	// The three possible collision axes are the x, y, and z axes.
+	axisX collisionAxis = iota
+	axisY
+	axisZ
+)
+
 // ApplyMovementAndResolveCollisions applies the accumulated movement delta
 // that's been collected since the previous update tick, and resolves
 // collisions between blocks in the world and the entity.
@@ -119,16 +129,6 @@ func (e *Entity) ApplyMovementAndResolveCollisions(w *world.World) {
 	// Reset the movement delta
 	e.moveDelta = mgl32.Vec3{}
 }
-
-// CollisionAxis represents an axis along which we can resolve a collision.
-type collisionAxis uint
-
-const (
-	// The three possible collision axes are the x, y, and z axes.
-	axisX collisionAxis = iota
-	axisY
-	axisZ
-)
 
 // ResolveBlockCollisions checks to see if the entity is colliding with any
 // solid blocks in the world, and if so resolves the collision.

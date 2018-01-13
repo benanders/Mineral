@@ -31,7 +31,7 @@ func genVerticesForBlock(vertices *[]float32, blocks BlockData, x, y, z int) {
 	}
 
 	// Generate vertex data for each face
-	for face := faceLeft; face <= faceBack; face++ {
+	for face := FaceLeft; face <= FaceBack; face++ {
 		// Get the coordinate of the block next to this face
 		nx, ny, nz := face.normal()
 		bx, by, bz := x+nx, y+ny, z+nz
@@ -47,7 +47,7 @@ func genVerticesForBlock(vertices *[]float32, blocks BlockData, x, y, z int) {
 // GenVerticesForFace adds the vertex data for a visible face of a block to
 // the vertices list.
 func genVerticesForFace(vertices *[]float32, blocks BlockData, x, y, z int,
-	face blockFace) {
+	face BlockFace) {
 	// All vertices that make up a cube
 	cubeVertices := [...][3]float32{
 		{0.0, 0.0, 1.0}, // Left,  bottom, front

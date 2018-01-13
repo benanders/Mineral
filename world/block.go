@@ -34,6 +34,7 @@ type BlockType uint
 // All block types.
 const (
 	BlockAir BlockType = iota
+	BlockBedrock
 	BlockStone
 	BlockDirt
 	BlockGrass
@@ -69,7 +70,7 @@ func (b BlockType) IsCollidable() bool {
 // Blocks return different AABBs depending on their type (e.g. fences). This
 // function is only ever called for blocks that are collidable.
 func (b BlockType) AABB(p, q, x, y, z int) util.AABB {
-	// We haven't implemented any special blocks yet, so just return a square
+	// We haven't implemented any special blocks yet, so just return a cube
 	// at the given location
 	rx, ry, rz := float32(p*ChunkWidth+x)+0.5, float32(y)+0.5,
 		float32(q*ChunkDepth+z)+0.5
@@ -79,20 +80,20 @@ func (b BlockType) AABB(p, q, x, y, z int) util.AABB {
 }
 
 // BlockFace represents one of the possible 6 faces of a block.
-type blockFace uint
+type BlockFace uint
 
 // All block faces.
 const (
-	faceLeft blockFace = iota
-	faceRight
-	faceTop
-	faceBottom
-	faceFront
-	faceBack
+	FaceLeft BlockFace = iota
+	FaceRight
+	FaceTop
+	FaceBottom
+	FaceFront
+	FaceBack
 )
 
 // Normal tells us the normal vector for a face.
-func (f blockFace) normal() (int, int, int) {
+func (f BlockFace) normal() (int, int, int) {
 	lookup := [...][3]int{
 		{-1, 0, 0}, // Left
 		{1, 0, 0},  // Right

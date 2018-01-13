@@ -13,9 +13,19 @@ type ViewPoint interface {
 	EyePosition() mgl32.Vec3
 }
 
-// DefaultFov is the default field of view for the camera, set to 60 degrees
-// converted to radians.
-const DefaultFov = 60.0 * float32(math.Pi) / 180.0 // 60 degrees in radians
+const (
+	// DefaultFov is the default field of view for the camera.
+	DefaultFov = 60.0 * float32(math.Pi) / 180.0 // 60 degrees in radians
+
+	// DefaultNear is the default near plane distance for the camera; the
+	// distance between the center of the camera and the closest visible thing.
+	DefaultNear = 0.1
+
+	// DefaultFar is the default far plane distance for the camera; the
+	// distance between the center of the camera and the furthest visible
+	// thing.
+	DefaultFar = 256.0
+)
 
 // Camera keeps track of the model, view, projection, and orientation matrices,
 // which define the perspective from which the scene is viewed.

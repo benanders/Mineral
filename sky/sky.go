@@ -5,6 +5,7 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/chewxy/math32"
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 
@@ -16,7 +17,7 @@ import (
 // The temperature throughout the world (influences the sky, fog, and sunrise
 // colors slightly). Individual biomes will have different temperatures in the
 // future.
-const worldTemperature = 0.5
+const worldTemperature float32 = 0.5
 
 // Sky is responsible for drawing the background sky in the game.
 type Sky struct {
@@ -27,7 +28,7 @@ type Sky struct {
 // RenderInfo stores a bunch of information required by the sky renderer in
 // order to draw the sky.
 type RenderInfo struct {
-	WorldTime    float64
+	WorldTime    float32
 	Camera       *camera.Camera
 	RenderRadius uint
 	LookDir      mgl32.Vec3
@@ -272,12 +273,12 @@ func genSunrisePlaneVertices() []float32 {
 		// The original minecraft source modulates the z component by the alpha
 		// of the current sunrise/sunset color. Since the alpha changes every
 		// frame, we do this in the vertex shader to reduce runtime overhead.
-		angle := float64(i) * 2.0 * math.Pi / 16.0
-		sin, cos := math.Sincos(angle)
-		vertices[(i+1)*4] = float32(sin) * 120.0   // position.x
-		vertices[(i+1)*4+1] = float32(cos) * 120.0 // position.y
-		vertices[(i+1)*4+2] = -float32(cos) * 40.0 // position.z
-		vertices[(i+1)*4+3] = 0.0                  // alpha multiplier
+		angle := float32(i) * 2.0 * math.Pi / 16.0
+		sin, cos := math32.Sincos(angle)
+		vertices[(i+1)*4] = sin * 120.0   // position.x
+		vertices[(i+1)*4+1] = cos * 120.0 // position.y
+		vertices[(i+1)*4+2] = -cos * 40.0 // position.z
+		vertices[(i+1)*4+3] = 0.0         // alpha multiplier
 	}
 
 	return vertices[:]
@@ -292,18 +293,13 @@ func (p *sunrisePlane) destroy() {
 
 // Color represents a color as red, green, and blue color components.
 type color struct {
-	r, g, b float64
+	r, g, b float32
 }
 
-// Returns the color components as float32s, suitable for use with OpenGL.
-func (c color) R() float32 { return float32(c.r) }
-func (c color) G() float32 { return float32(c.g) }
-func (c color) B() float32 { return float32(c.b) }
-
 // HsvToRgb converts a color from HSV color space to RGB color space.
-func hsvToRgb(h, s, v float64) color {
+func hsvToRgb(h, s, v float32) color {
 	option := int(h*6.0) % 6
-	factor := h*6.0 - float64(option)
+	factor := h*6.0 - float32(option)
 	a := v * (1.0 - s)
 	b := v * (1.0 - factor*s)
 	c := v * (1.0 - (1.0-factor)*s)
@@ -326,10 +322,10 @@ func hsvToRgb(h, s, v float64) color {
 
 // The celestial angle is proportional to the angle that the sun makes with the
 // horizon. It is a value between 0 and 1 representing the time of day.
-func getCelestialAngle(worldTime float64) float64 {
+func getCelestialAngle(worldTime float32) float32 {
 	// Since world time is measured in days, the progress through the current
 	// day is just the fractional part of `worldTime`
-	dayProgress := worldTime - float64(uint64(worldTime))
+	dayProgress := worldTime - float32(uint64(worldTime))
 
 	// We subtract 0.25 so that the start of the day (worldTime = 0) represents
 	// sunrise, rather than midnight
@@ -343,23 +339,23 @@ func getCelestialAngle(worldTime float64) float64 {
 	}
 
 	// This is the magical celestial angle calculation from the Minecraft source
-	celestialAngle := 0.5 * (1.0 - math.Cos(dayProgress*math.Pi))
+	celestialAngle := 0.5 * (1.0 - math32.Cos(dayProgress*math.Pi))
 	return dayProgress + (celestialAngle-dayProgress)/3.0
 }
 
 // The sky color is used for the sky plane, and is normally a slightly darker
 // blue than the fog color.
-func getSkyColor(celestialAngle float64) color {
+func getSkyColor(celestialAngle float32) color {
 	// Calculate the base color based on the temperature
-	temperature := util.Clamp64(worldTemperature/3.0, -1.0, 1.0)
+	temperature := util.Clamp(worldTemperature/3.0, -1.0, 1.0)
 	base := hsvToRgb(
 		0.62222224-temperature*0.05,
 		0.5+temperature*0.1,
 		1.0)
 
 	// Calculate the brightness multiplier
-	brightness := math.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = util.Clamp64(brightness, 0.0, 1.0)
+	brightness := math32.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
+	brightness = util.Clamp(brightness, 0.0, 1.0)
 
 	// Calculate the final color
 	return color{base.r * brightness, base.g * brightness,
@@ -368,7 +364,7 @@ func getSkyColor(celestialAngle float64) color {
 
 // The void color is used for the void plane, and is normally a deeper blue
 // than the sky color.
-func getVoidColor(celestialAngle float64) color {
+func getVoidColor(celestialAngle float32) color {
 	// Calculate the void plane color based off the sky color
 	skyColor := getSkyColor(celestialAngle)
 	return color{
@@ -379,14 +375,14 @@ func getVoidColor(celestialAngle float64) color {
 
 // Calculates the color of the sunrise/sunset, based on the current celestial
 // angle.
-func getSunriseColor(celestialAngle float64) (color, float64) {
+func getSunriseColor(celestialAngle float32) (color, float32) {
 	// Calculate time of day multiplier
-	multiplier := math.Cos(celestialAngle * 2.0 * math.Pi)
+	multiplier := math32.Cos(celestialAngle * 2.0 * math.Pi)
 
 	// Only apply the sunrise/sunset color if the time of day is right
 	if multiplier >= -0.4 && multiplier <= 0.4 {
 		phase := multiplier*1.25 + 0.5
-		sqrtAlpha := math.Sin(phase*math.Pi)*0.99 + 0.01
+		sqrtAlpha := math32.Sin(phase*math.Pi)*0.99 + 0.01
 		sunriseColor := color{
 			phase*0.3 + 0.7,
 			phase*phase*0.7 + 0.2,
@@ -398,11 +394,11 @@ func getSunriseColor(celestialAngle float64) (color, float64) {
 
 // Calculates the background fog color, including the influence of looking
 // towards the sunrise/sunset.
-func getFogColor(celestialAngle float64, renderRadius uint,
+func getFogColor(celestialAngle float32, renderRadius uint,
 	lookDir mgl32.Vec3) color {
 	// Calculate the brightness multiplier
-	brightness := math.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = util.Clamp64(brightness, 0.0, 1.0)
+	brightness := math32.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
+	brightness = util.Clamp(brightness, 0.0, 1.0)
 
 	// Calculate the fog color using some magic numbers
 	fogColor := color{
@@ -414,7 +410,7 @@ func getFogColor(celestialAngle float64, renderRadius uint,
 	if renderRadius >= 4 {
 		// Get a vector whose direction depends on whether this is a sunrise or
 		// sunset
-		sinAngle := math.Sin(celestialAngle * math.Pi * 2.0)
+		sinAngle := math32.Sin(celestialAngle * math.Pi * 2.0)
 		var sunDir mgl32.Vec3
 		if sinAngle < 0.0 {
 			sunDir = mgl32.Vec3{-1.0, 0.0, 0.0}
@@ -424,22 +420,22 @@ func getFogColor(celestialAngle float64, renderRadius uint,
 
 		// Calculate the look direction multiplier (player facing more towards
 		// the sunrise/sunset makes it look more intense)
-		lookMultiplier := math.Max(float64(lookDir.Dot(sunDir)), 0.0)
+		lookMultiplier := math32.Max(lookDir.Dot(sunDir), 0.0)
 
 		// Get the sunrise/sunset color
 		sunriseColor, alpha := getSunriseColor(celestialAngle)
 
 		// Modify the fog color based on the sunrise/sunset color
 		lookMultiplier *= alpha
-		fogColor.r = util.Lerp64(fogColor.r, sunriseColor.r, lookMultiplier)
-		fogColor.g = util.Lerp64(fogColor.g, sunriseColor.g, lookMultiplier)
-		fogColor.b = util.Lerp64(fogColor.b, sunriseColor.b, lookMultiplier)
+		fogColor.r = util.Lerp(fogColor.r, sunriseColor.r, lookMultiplier)
+		fogColor.g = util.Lerp(fogColor.g, sunriseColor.g, lookMultiplier)
+		fogColor.b = util.Lerp(fogColor.b, sunriseColor.b, lookMultiplier)
 	}
 
 	// Modify the fog color with the sky color based on the render radius
 	sky := getSkyColor(celestialAngle)
-	fractionalRadius := float64(renderRadius) / float64(world.MaxRenderRadius)
-	sightFactor := 1.0 - math.Pow(fractionalRadius*0.75+0.25, 0.25)
+	fractionalRadius := float32(renderRadius) / float32(world.MaxRenderRadius)
+	sightFactor := 1.0 - math32.Pow(fractionalRadius*0.75+0.25, 0.25)
 	fogColor.r += (sky.r - fogColor.r) * sightFactor
 	fogColor.g += (sky.g - fogColor.g) * sightFactor
 	fogColor.b += (sky.b - fogColor.b) * sightFactor
@@ -453,7 +449,7 @@ func (s *Sky) renderBackground(info RenderInfo) {
 	fogColor := getFogColor(celestialAngle, info.RenderRadius, info.LookDir)
 
 	// Clear the screen
-	gl.ClearColor(fogColor.R(), fogColor.G(), fogColor.B(), 1.0)
+	gl.ClearColor(fogColor.r, fogColor.g, fogColor.b, 1.0)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 }
 
@@ -469,11 +465,11 @@ func (p *skyPlane) renderSky(info RenderInfo) {
 	// Set the color of the sky plane to the sky color
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	skyColor := getSkyColor(celestialAngle)
-	gl.Uniform3f(p.colorUnf, skyColor.R(), skyColor.G(), skyColor.B())
+	gl.Uniform3f(p.colorUnf, skyColor.r, skyColor.g, skyColor.b)
 
 	// Set the fog color uniform
 	fogColor := getFogColor(celestialAngle, info.RenderRadius, info.LookDir)
-	gl.Uniform3f(p.fogColorUnf, fogColor.R(), fogColor.G(), fogColor.B())
+	gl.Uniform3f(p.fogColorUnf, fogColor.r, fogColor.g, fogColor.b)
 
 	// Set the far plane distance, used for fog calculations
 	gl.Uniform1f(p.farPlaneUnf, info.Camera.FarPlane)
@@ -490,7 +486,7 @@ func (p *skyPlane) renderVoid(info RenderInfo) {
 	// to the void color
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	voidColor := getVoidColor(celestialAngle)
-	gl.Uniform3f(p.colorUnf, voidColor.R(), voidColor.G(), voidColor.B())
+	gl.Uniform3f(p.colorUnf, voidColor.r, voidColor.g, voidColor.b)
 
 	// Render the sky plane
 	gl.BindVertexArray(p.voidVao)
@@ -507,7 +503,7 @@ func (p *sunrisePlane) render(info RenderInfo) {
 	// sunset (to change where the sunrise plane appears in the sky)
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	var todAngle float32 // tod stands for time of day
-	if math.Sin(celestialAngle*math.Pi*2.0) < 0.0 {
+	if math32.Sin(celestialAngle*math.Pi*2.0) < 0.0 {
 		todAngle = math.Pi
 	} else {
 		todAngle = 0.0
@@ -522,8 +518,7 @@ func (p *sunrisePlane) render(info RenderInfo) {
 
 	// Set the sunrise color uniform
 	color, alpha := getSunriseColor(celestialAngle)
-	gl.Uniform4f(p.sunriseColorUnf, color.R(), color.G(), color.B(),
-		float32(alpha))
+	gl.Uniform4f(p.sunriseColorUnf, color.r, color.g, color.b, alpha)
 
 	// Render the sunrise plane with linear alpha blending enabled
 	gl.Enable(gl.BLEND)
