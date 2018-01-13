@@ -23,7 +23,7 @@ type Game struct {
 	world      *world.World
 
 	startTime time.Time
-	worldTime float64
+	worldTime float32
 }
 
 // New creates a new game state.
@@ -45,7 +45,8 @@ func New(window *sdl.Window) *Game {
 	w, h := sdl.GLGetDrawableSize(window)
 	aspect := float32(w) / float32(h)
 	g.camera = &camera.Camera{}
-	g.camera.Perspective(camera.DefaultFov, aspect, 0.1, 256.0)
+	g.camera.Perspective(camera.DefaultFov, aspect, camera.DefaultNear,
+		camera.DefaultFar)
 	g.camera.Follow(g.player)
 
 	return &g
