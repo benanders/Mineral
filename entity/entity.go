@@ -3,7 +3,7 @@ package entity
 import (
 	"math"
 
-	"github.com/benanders/mineral/util"
+	"github.com/benanders/mineral/math"
 	"github.com/benanders/mineral/world"
 
 	"github.com/chewxy/math32"
@@ -19,7 +19,7 @@ import (
 // affects rendering, and specifies the entity's viewing direction (i.e. sight
 // vector) in spherical coordinates.
 type Entity struct {
-	AABB     util.AABB  // AABB specifying position and size
+	AABB     math.AABB  // AABB specifying position and size
 	Rotation mgl32.Vec2 // Rotation along the x and y axes
 
 	Sight   mgl32.Vec3 // Points in the direction the entity is looking
@@ -40,7 +40,7 @@ type Entity struct {
 
 // NewEntity creates a new instance of the entity with an initial position,
 // size (specified by the entity's AABB), and rotation.
-func NewEntity(aabb util.AABB, rotation mgl32.Vec2, moveSpeed,
+func NewEntity(aabb math.AABB, rotation mgl32.Vec2, moveSpeed,
 	lookSpeed float32) *Entity {
 	e := Entity{AABB: aabb, Rotation: rotation, moveSpeed: moveSpeed,
 		lookSpeed: lookSpeed}
@@ -76,7 +76,7 @@ func (e *Entity) Look(delta mgl32.Vec2) {
 	// Clamp the vertical look direction; use a small epsilon since the
 	// rendering seems to screw up if we don't
 	epsilon := float32(0.0001)
-	y = util.Clamp(y, -math.Pi/2.0+epsilon, math.Pi/2.0-epsilon)
+	y = math.Clamp(y, -math.Pi/2.0+epsilon, math.Pi/2.0-epsilon)
 
 	// Update the entity's rotation and orthonormal movement axes based on the
 	// new look direction
@@ -177,7 +177,7 @@ func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
 // ResolveCollision checks to see if the entity is colliding with the given
 // AABB, and if so resolves the collision by moving the entity along the
 // specified axis.
-func (e *Entity) resolveCollision(other util.AABB, axis collisionAxis) {
+func (e *Entity) resolveCollision(other math.AABB, axis collisionAxis) {
 	// Check the entity's AABB intersects the other AABB
 	if !e.AABB.Intersects(other) {
 		return

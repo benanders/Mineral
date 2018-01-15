@@ -5,7 +5,6 @@ import (
 
 	"github.com/benanders/mineral/camera"
 	"github.com/benanders/mineral/entity"
-	"github.com/benanders/mineral/entity/ctrl"
 	"github.com/benanders/mineral/sky"
 	"github.com/benanders/mineral/world"
 
@@ -17,7 +16,7 @@ import (
 type Game struct {
 	window     *sdl.Window
 	player     *entity.Player
-	playerCtrl ctrl.Controller
+	playerCtrl entity.Controller
 	camera     *camera.Camera
 	sky        *sky.Sky
 	world      *world.World
@@ -39,7 +38,7 @@ func New(window *sdl.Window) *Game {
 
 	// Player, and the player's input controller
 	g.player = entity.NewPlayer(mgl32.Vec3{0.0, 5.0, 0.0}, mgl32.Vec2{})
-	g.playerCtrl = ctrl.NewInputCtrl()
+	g.playerCtrl = entity.NewInputCtrl()
 
 	// Camera
 	w, h := sdl.GLGetDrawableSize(window)
@@ -79,9 +78,9 @@ func (g *Game) Update() {
 	g.camera.Follow(g.player)
 
 	// For debugging only
-	if g.playerCtrl.(*ctrl.InputCtrl).IsKeyDown[sdl.SCANCODE_UP] {
+	if g.playerCtrl.(*entity.InputCtrl).IsKeyDown[sdl.SCANCODE_UP] {
 		g.worldTime += 0.005
-	} else if g.playerCtrl.(*ctrl.InputCtrl).IsKeyDown[sdl.SCANCODE_DOWN] {
+	} else if g.playerCtrl.(*entity.InputCtrl).IsKeyDown[sdl.SCANCODE_DOWN] {
 		g.worldTime -= 0.005
 	}
 }

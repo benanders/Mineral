@@ -9,8 +9,8 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 
+	"github.com/benanders/mineral/assets"
 	"github.com/benanders/mineral/camera"
-	"github.com/benanders/mineral/util"
 	"github.com/benanders/mineral/world"
 )
 
@@ -55,84 +55,6 @@ type sunrisePlane struct {
 	sunriseColorUnf int32
 }
 
-const (
-	// SkyVertexShader stores the source code for the vertex shader for the
-	// sky plane.
-	skyVertexShader = `
-#version 330
-
-uniform mat4 mvp;
-
-in vec3 position;
-out vec3 fragPos;
-
-void main() {
-	gl_Position = mvp * vec4(position, 1.0);
-	fragPos = position;
-}
-`
-
-	// SkyFragmentShader stores the source code for the fragment shader for the
-	// sky plane.
-	skyFragmentShader = `
-#version 330
-
-uniform vec3 skyColor;
-uniform vec3 fogColor;
-uniform float farPlane;
-
-in vec3 fragPos;
-out vec4 color;
-
-void main() {
-	// Use the position of the fragment to calculate the fog strength
-	float fog_strength = length(fragPos) / (farPlane * 0.8);
-	fog_strength = clamp(fog_strength, 0.0, 1.0);
-
-	// Modulate between the sky and fog colors by the fog strength factor
-	color = vec4(mix(skyColor, fogColor, fog_strength), 1.0);
-}
-`
-
-	// SunriseVertexShader stores the source code for the vertex shader for the
-	// sunrise plane.
-	sunriseVertexShader = `
-#version 330
-
-uniform mat4 mvp;
-uniform vec4 sunriseColor;
-
-in vec3 position;
-in float alpha;
-out float fragAlpha;
-
-void main() {
-	// Modulate the z component of the position by the alpha component of the
-	// sunrise color
-	gl_Position = mvp * vec4(position.xy, position.z * sunriseColor.a, 1.0);
-	fragAlpha = alpha;
-}
-`
-
-	// SunriseFragmentShader stores the source code for the fragment shader for
-	// the sunrise plane.
-	sunriseFragmentShader = `
-#version 330
-
-uniform vec4 sunriseColor;
-
-in float fragAlpha;
-out vec4 color;
-
-void main() {
-	// The alpha multiplier is 1 for the centre point of the fan, and 0 for all
-	// the points on the rim. This means the sunrise color fades to nothing on
-	// the rim, and has an alpha component of sunriseColor.a at the centre
-	color = vec4(sunriseColor.rgb, sunriseColor.a * fragAlpha);
-}
-`
-)
-
 // NewSky creates a new sky renderer instance.
 func NewSky() *Sky {
 	return &Sky{newSkyPlane(), newSunrisePlane()}
@@ -148,7 +70,9 @@ func (s *Sky) Destroy() {
 // resources for the sky plane.
 func newSkyPlane() skyPlane {
 	// Create the shader progarm
-	program, err := util.LoadShaders(skyVertexShader, skyFragmentShader)
+	vertexSource := string(assets.Asset("shaders/sky_vert.glsl"))
+	fragmentSource := string(assets.Asset("shaders/sky_frag.glsl"))
+	program, err := util.LoadShaders(vertexSource, fragmentSource)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -233,7 +157,9 @@ func newSunrisePlane() sunrisePlane {
 		gl.Ptr(vertices[:]), gl.STATIC_DRAW)
 
 	// Create the shader progarm
-	program, err := util.LoadShaders(sunriseVertexShader, sunriseFragmentShader)
+	vertexSource := string(assets.Asset("shaders/sunrise_vert.glsl"))
+	fragmentSource := string(assets.Asset("shaders/sunrise_frag.glsl"))
+	program, err := util.LoadShaders(vertexSource, fragmentSource)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -347,7 +273,7 @@ func getCelestialAngle(worldTime float32) float32 {
 // blue than the fog color.
 func getSkyColor(celestialAngle float32) color {
 	// Calculate the base color based on the temperature
-	temperature := util.Clamp(worldTemperature/3.0, -1.0, 1.0)
+	temperature := util.clamp(worldTemperature/3.0, -1.0, 1.0)
 	base := hsvToRgb(
 		0.62222224-temperature*0.05,
 		0.5+temperature*0.1,
@@ -355,7 +281,7 @@ func getSkyColor(celestialAngle float32) color {
 
 	// Calculate the brightness multiplier
 	brightness := math32.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = util.Clamp(brightness, 0.0, 1.0)
+	brightness = util.clamp(brightness, 0.0, 1.0)
 
 	// Calculate the final color
 	return color{base.r * brightness, base.g * brightness,
@@ -398,7 +324,7 @@ func getFogColor(celestialAngle float32, renderRadius uint,
 	lookDir mgl32.Vec3) color {
 	// Calculate the brightness multiplier
 	brightness := math32.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = util.Clamp(brightness, 0.0, 1.0)
+	brightness = util.clamp(brightness, 0.0, 1.0)
 
 	// Calculate the fog color using some magic numbers
 	fogColor := color{
@@ -427,9 +353,9 @@ func getFogColor(celestialAngle float32, renderRadius uint,
 
 		// Modify the fog color based on the sunrise/sunset color
 		lookMultiplier *= alpha
-		fogColor.r = util.Lerp(fogColor.r, sunriseColor.r, lookMultiplier)
-		fogColor.g = util.Lerp(fogColor.g, sunriseColor.g, lookMultiplier)
-		fogColor.b = util.Lerp(fogColor.b, sunriseColor.b, lookMultiplier)
+		fogColor.r = util.lerp(fogColor.r, sunriseColor.r, lookMultiplier)
+		fogColor.g = util.lerp(fogColor.g, sunriseColor.g, lookMultiplier)
+		fogColor.b = util.lerp(fogColor.b, sunriseColor.b, lookMultiplier)
 	}
 
 	// Modify the fog color with the sky color based on the render radius

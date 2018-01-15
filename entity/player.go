@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"github.com/benanders/mineral/util"
+	"github.com/benanders/mineral/math"
 	"github.com/go-gl/mathgl/mgl32"
 )
 
@@ -24,7 +24,7 @@ type Player struct {
 // rotation.
 func NewPlayer(center mgl32.Vec3, rotation mgl32.Vec2) *Player {
 	// Default player size is 0.6 x 1.8 x 0.6 blocks
-	aabb := util.AABB{Center: center, Size: mgl32.Vec3{0.6, 1.8, 0.6}}
+	aabb := math.AABB{Center: center, Size: mgl32.Vec3{0.6, 1.8, 0.6}}
 	entity := NewEntity(aabb, rotation, playerMoveSpeed, playerLookSpeed)
 	p := Player{*entity}
 	p.updateAxes()

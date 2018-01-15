@@ -4,23 +4,27 @@ import (
 	"log"
 	"unsafe"
 
+	"github.com/benanders/mineral/block"
 	"github.com/benanders/mineral/camera"
-	"github.com/benanders/mineral/util"
+	"github.com/benanders/mineral/render"
 	"github.com/chewxy/math32"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
 
 const (
-	// The size of a chunk, measured in blocks.
-	ChunkWidth  = 16
-	ChunkHeight = 256
-	ChunkDepth  = 16
-
 	// MaxRenderRadius is the maximum value for the render radius of chunks. It
 	// is the maximum distance a player could see ahead of them (measured in
 	// chunks).
 	MaxRenderRadius = 32
+
+	// TerrainTextureSlot is the OpenGL texture slot that the terrain texture
+	// is loaded into.
+	terrainTextureSlot = 0
+
+	// The size of each block in the terrain texture image, in pixels.
+	terrainTextureBlockPixelWidth  = 16
+	terrainTextureBlockPixelHeight = 16
 )
 
 // World stores all the loaded chunks and loads/unloads chunks as required.
@@ -34,46 +38,17 @@ type World struct {
 	posAttr    uint32
 	normalAttr uint32
 	uvAttr     uint32
+
+	terrainTexture uint32
+	// Size of a single 16x16 pixel block in the terrain texture, used to
+	// compute the actual UV coordinates of a block in the texture.
+	terrainTextureBlockWidth, terrainTextureBlockHeight float32
 }
-
-const (
-	// ChunkVertexShader stores the source code of the vertex shader for chunk
-	// rendering.
-	chunkVertexShader = `
-#version 330
-
-uniform mat4 mvp;
-
-in vec3 position;
-in vec3 normal;
-in vec2 uv;
-
-out vec2 fragUV;
-
-void main() {
-	gl_Position = mvp * vec4(position, 1.0);
-	fragUV = uv;
-}	
-`
-
-	// ChunkFragmentShader stores the source code of the fragment shader for
-	// chunk rendering.
-	chunkFragmentShader = `
-#version 330
-
-in vec2 fragUV;
-out vec4 color;
-
-void main() {
-	color = vec4(fragUV, 0.0, 1.0);
-}	
-`
-)
 
 // NewWorld creates a new world instance with no loaded chunks yet.
 func New(renderRadius uint) *World {
 	// Create the chunk rendering program
-	program, err := util.LoadShaders(chunkVertexShader, chunkFragmentShader)
+	program, err := render.LoadShaders(chunkVertexShader, chunkFragmentShader)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -87,11 +62,17 @@ func New(renderRadius uint) *World {
 	normalAttr := uint32(gl.GetAttribLocation(program, gl.Str("normal\x00")))
 	uvAttr := uint32(gl.GetAttribLocation(program, gl.Str("uv\x00")))
 
+	// Load the terrain texture
+
+	terrainTexture := render.LoadTexture()
+
 	return &World{
 		renderRadius,
 		make(map[ChunkPos]*Chunk, 0),
 		make([]chan interface{}, 0),
-		program, mvpUnf, posAttr, normalAttr, uvAttr}
+		program, mvpUnf, posAttr, normalAttr, uvAttr,
+		terrainTexture,
+	}
 }
 
 // Destroy unloads all the currently loaded chunks.
@@ -115,19 +96,19 @@ func (w *World) Destroy() {
 func Chunked(wx, wy, wz int) (p, q, x, y, z int) {
 	// Use floor to always round down towards negative infinity. Otherwise the
 	// 4 chunks around the centre of the world would have a (p, q) of (0, 0)
-	p = int(math32.Floor(float32(wx) / float32(ChunkWidth)))
-	q = int(math32.Floor(float32(wz) / float32(ChunkDepth)))
+	p = int(math32.Floor(float32(wx) / float32(block.ChunkWidth)))
+	q = int(math32.Floor(float32(wz) / float32(block.ChunkDepth)))
 
 	// Go's modulo operator is stupid and returns negative numbers, so we fix
 	// this by adding on `ChunkWidth` or `ChunkDepth`
-	x = wx % ChunkWidth
+	x = wx % block.ChunkWidth
 	if x < 0 {
-		x += ChunkWidth
+		x += block.ChunkWidth
 	}
 	y = wy
-	z = wz % ChunkDepth
+	z = wz % block.ChunkDepth
 	if z < 0 {
-		z += ChunkDepth
+		z += block.ChunkDepth
 	}
 	return
 }
@@ -336,4 +317,29 @@ func (c *Chunk) render(info RenderInfo) {
 	// Render the chunk
 	gl.BindVertexArray(c.vao)
 	gl.DrawArrays(gl.TRIANGLES, 0, c.numVertices)
+}
+
+// BlockData represents an array of blocks within a chunk.
+type BlockData []block.Block
+
+// NewBlockData creates a new blocks array for a chunk, with length equal to
+// the number of blocks within a chunk.
+func newBlockData() BlockData {
+	return make([]block.Block,
+		block.ChunkWidth*block.ChunkHeight*block.ChunkDepth)
+}
+
+// At returns the block at the given coordinate within the block list. If the
+// given coordinates are outside the block list's boundaries, then returns
+func (b BlockData) At(x, y, z int) *block.Block {
+	if x < 0 || x >= block.ChunkWidth ||
+		y < 0 || y >= block.ChunkHeight ||
+		z < 0 || z >= block.ChunkDepth {
+		// Return an air block if the coordinate is outside the block data's
+		// available range
+		temp := block.Air
+		return &temp
+	} else {
+		return &b[y*block.ChunkWidth*block.ChunkDepth+z*block.ChunkWidth+x]
+	}
 }

@@ -7,64 +7,71 @@ the project are:
 
 * **Visually accurate**: attempt to be mostly true to the original game in
   terms of visual appearence, but allows for select changes and the addition of
-  new features that may enhance usability (or that make my life easier!)
+  new features that may enhance usability (or that make my life easier!).
 * **Complete**: attempt to recreate the majority of Minecraft's most used
-  features
-* **Modern**: use modern technologies and OpenGL rendering techniques
+  features.
+* **Modern**: use modern technologies and OpenGL rendering techniques.
 * **Extensible**: well commented and documented source code, written in a
-  clean, easily maintainable, extensible fashion
+  clean, easily maintainable, extensible fashion.
 * **Technically unique**: the implementation is incompatible with the original
-  game, differing in the design of its APIs, protocols, and architecture
+  game, differing in the design of its APIs, protocols, and architecture.
 
 This project is really just for my own amusement, so don't expect it to
 actually go anywhere!
 
 ## Building
 
-You'll need SDL2 installed in order to build Mineral from scratch.  See the
-[README](https://github.com/veandco/go-sdl2) in the Go SDL2 bindings repository
-for a great description on how to install it.
+The [Mojang Brand and Asset
+Guidelines](https://account.mojang.com/documents/brand_guidelines) are pretty
+lenient for non-commercial things, but explicitly prohibit distribution of
+their assets. So, you'll need to extract the assets from the original game
+before being able to build Mineral. This means you'll need to own a copy of
+Minecraft.
 
-Then just run:
+First, buy Minecraft from the [Mojang website](https://minecraft.net/en-us/),
+install it, and run the game (not just the launcher) at least once to download
+all the assets.
+
+Next, clone this repository:
 
 ```bash
-$ go get -v github.com/benanders/Mineral
-$ cd $GOPATH/src/github.com/benanders/Mineral
-$ go run *.go
+$ git clone https://github.com/benandrs/Mineral
+$ cd Mineral
 ```
 
-## To Do
+Then run the asset extraction script:
 
-Core features:
+```bash
+$ go run buildAssets.go
+```
 
-[ ] Collision detection
-[ ] Gravity, drag, other motion physics for the player
-[ ] Texture rendering
-[ ] More blocks
-[ ] Wireframe block highlighting
-[ ] Block placement, destruction
-[ ] Calculate sky/block lighting values on separate goroutine
-[ ] Smooth lighting
-[ ] Ambient occlusion
-[ ] Terrain generation
-[ ] Jumping
-[ ] Sprinting
-[ ] Peaceful mobs (sheep, cows, etc.)
-[ ] Violent mobs (zombies, creepers, etc.)
-[ ] Special blocks (fences, stairs, half slabs, TNT, etc.)
-[ ] Sounds (walking, mobs, etc.)
-[ ] In game GUI
-[ ] Player inventory
-[ ] Player quick inventory
-[ ] Tools
-[ ] View bobbing
-[ ] Crafting in player's inventory
-[ ] Crafting table GUI
-[ ] Crafting with crafting table
+Install [go-bindata](https://github.com/jteeuwen/go-bindata):
 
-Additional features:
+```bash
+$ go get -u github.com/jteeuwen/go-bindata/...
+```
 
-[ ] Main menu
-[ ] Pause menu
-[ ] In-game options
-[ ] Game saving/loading
+Compile all the assets into a single Go file for inclusion in the executable:
+
+```bash
+$ go-bindata -pkg assets -prefix "assets/data" -ignore "\.DS_Store" -o assets/assets.go assets/data/...
+```
+
+Install the Go SDL2 bindings using the instructions in the
+[README](https://github.com/veandco/go-sdl2) of their repository.
+
+Now you can run Mineral with:
+
+```bash
+$ go run main.go
+```
+
+## License
+
+All the code that I've written here is under the MIT license, so you are pretty
+much free to do whatever you want with it.
+
+The [Mojang Brand and Asset
+Guidelines](https://account.mojang.com/documents/brand_guidelines) require me
+to say that Mineral is not an official Minecraft product, and is not approved
+by or associated with Mojang in any way.
