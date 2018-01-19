@@ -1,8 +1,6 @@
 package entity
 
 import (
-	"math"
-
 	"github.com/benanders/mineral/math"
 	"github.com/benanders/mineral/world"
 
@@ -76,7 +74,7 @@ func (e *Entity) Look(delta mgl32.Vec2) {
 	// Clamp the vertical look direction; use a small epsilon since the
 	// rendering seems to screw up if we don't
 	epsilon := float32(0.0001)
-	y = math.Clamp(y, -math.Pi/2.0+epsilon, math.Pi/2.0-epsilon)
+	y = math.Clamp(y, -math32.Pi/2.0+epsilon, math32.Pi/2.0-epsilon)
 
 	// Update the entity's rotation and orthonormal movement axes based on the
 	// new look direction
@@ -165,7 +163,7 @@ func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
 
 	// Check the block we're colliding against is solid
 	block := chunk.Blocks.At(cx, cy, cz)
-	if !block.IsCollidable() {
+	if block == nil || !block.Collidable() {
 		return
 	}
 

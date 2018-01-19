@@ -1,0 +1,5 @@
+Name = "Cobblestone"
+Visible = true
+Collidable = true
+Transparent = false
+Texture = "textures/blocks/cobblestone.png"

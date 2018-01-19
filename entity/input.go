@@ -49,7 +49,7 @@ func (c *InputCtrl) HandleEvent(evt sdl.Event) {
 	switch e := evt.(type) {
 	case *sdl.KeyboardEvent:
 		// Prevent an index out of bounds error
-		if e.Keysym.Scancode < 256 {
+		if int(e.Keysym.Scancode) < len(c.IsKeyDown) {
 			c.IsKeyDown[e.Keysym.Scancode] = (e.State == sdl.PRESSED)
 		}
 	case *sdl.MouseMotionEvent:

@@ -2,15 +2,15 @@ package sky
 
 import (
 	"log"
-	"math"
-	"unsafe"
 
 	"github.com/chewxy/math32"
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 
-	"github.com/benanders/mineral/assets"
+	"github.com/benanders/mineral/asset"
 	"github.com/benanders/mineral/camera"
+	"github.com/benanders/mineral/math"
+	"github.com/benanders/mineral/render"
 	"github.com/benanders/mineral/world"
 )
 
@@ -69,10 +69,18 @@ func (s *Sky) Destroy() {
 // NewSkyPlane builds the vertex data and allocates the required OpenGL
 // resources for the sky plane.
 func newSkyPlane() skyPlane {
-	// Create the shader progarm
-	vertexSource := string(assets.Asset("shaders/sky_vert.glsl"))
-	fragmentSource := string(assets.Asset("shaders/sky_frag.glsl"))
-	program, err := util.LoadShaders(vertexSource, fragmentSource)
+	// Load the vertex and fragment shader source code
+	vert, err := asset.Asset("shaders/skyVert.glsl")
+	if err != nil {
+		log.Fatalln("failed to load shaders/skyVert.glsl: ", err)
+	}
+	frag, err := asset.Asset("shaders/skyFrag.glsl")
+	if err != nil {
+		log.Fatalln("failed to load shaders/skyFrag.glsl: ", err)
+	}
+
+	// Create the program
+	program, err := render.LoadShaders(string(vert), string(frag))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -119,9 +127,7 @@ func genPlane(program uint32, vertices []float32) (vao, vbo uint32) {
 	// Create the VBO and populate it with data
 	gl.GenBuffers(1, &vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER,
-		int(unsafe.Sizeof(float32(0.0)))*len(vertices),
-		gl.Ptr(vertices[:]),
+	gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*4, gl.Ptr(&vertices[0]),
 		gl.STATIC_DRAW)
 
 	// Enable the position attribute
@@ -153,13 +159,21 @@ func newSunrisePlane() sunrisePlane {
 	var vbo uint32
 	gl.GenBuffers(1, &vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, int(unsafe.Sizeof(float32(0.0))*18*4),
-		gl.Ptr(vertices[:]), gl.STATIC_DRAW)
+	gl.BufferData(gl.ARRAY_BUFFER, 4*18*4, gl.Ptr(&vertices[0]),
+		gl.STATIC_DRAW)
 
-	// Create the shader progarm
-	vertexSource := string(assets.Asset("shaders/sunrise_vert.glsl"))
-	fragmentSource := string(assets.Asset("shaders/sunrise_frag.glsl"))
-	program, err := util.LoadShaders(vertexSource, fragmentSource)
+	// Load the vertex and fragment shader source code
+	vert, err := asset.Asset("shaders/sunriseVert.glsl")
+	if err != nil {
+		log.Fatalln("failed to load shaders/sunriseVert.glsl: ", err)
+	}
+	frag, err := asset.Asset("shaders/sunriseFrag.glsl")
+	if err != nil {
+		log.Fatalln("failed to load shaders/sunriseFrag.glsl: ", err)
+	}
+
+	// Create the program
+	program, err := render.LoadShaders(string(vert), string(frag))
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -172,16 +186,13 @@ func newSunrisePlane() sunrisePlane {
 	// Enable the position attribute
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
 	gl.EnableVertexAttribArray(posAttr)
-	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false,
-		int32(4*unsafe.Sizeof(float32(0.0))), nil)
+	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false, 4*4, nil)
 
 	// Enable the alpha multiplier attribute
 	alphaAttr := uint32(gl.GetAttribLocation(program, gl.Str("alpha\x00")))
-	offset := 3 * unsafe.Sizeof(float32(0.0))
 	gl.EnableVertexAttribArray(alphaAttr)
-	gl.VertexAttribPointer(alphaAttr, 1, gl.FLOAT, false,
-		int32(4*unsafe.Sizeof(float32(0.0))), // stride of 4
-		gl.PtrOffset(int(offset)))            // offset of 3
+	gl.VertexAttribPointer(alphaAttr, 1, gl.FLOAT, false, 4*4,
+		gl.PtrOffset(3*4))
 
 	return sunrisePlane{vao, vbo, program, mvpUnf, colorUnf}
 }
@@ -199,7 +210,7 @@ func genSunrisePlaneVertices() []float32 {
 		// The original minecraft source modulates the z component by the alpha
 		// of the current sunrise/sunset color. Since the alpha changes every
 		// frame, we do this in the vertex shader to reduce runtime overhead.
-		angle := float32(i) * 2.0 * math.Pi / 16.0
+		angle := float32(i) * 2.0 * math32.Pi / 16.0
 		sin, cos := math32.Sincos(angle)
 		vertices[(i+1)*4] = sin * 120.0   // position.x
 		vertices[(i+1)*4+1] = cos * 120.0 // position.y
@@ -265,7 +276,7 @@ func getCelestialAngle(worldTime float32) float32 {
 	}
 
 	// This is the magical celestial angle calculation from the Minecraft source
-	celestialAngle := 0.5 * (1.0 - math32.Cos(dayProgress*math.Pi))
+	celestialAngle := 0.5 * (1.0 - math32.Cos(dayProgress*math32.Pi))
 	return dayProgress + (celestialAngle-dayProgress)/3.0
 }
 
@@ -273,15 +284,15 @@ func getCelestialAngle(worldTime float32) float32 {
 // blue than the fog color.
 func getSkyColor(celestialAngle float32) color {
 	// Calculate the base color based on the temperature
-	temperature := util.clamp(worldTemperature/3.0, -1.0, 1.0)
+	temperature := math.Clamp(worldTemperature/3.0, -1.0, 1.0)
 	base := hsvToRgb(
 		0.62222224-temperature*0.05,
 		0.5+temperature*0.1,
 		1.0)
 
 	// Calculate the brightness multiplier
-	brightness := math32.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = util.clamp(brightness, 0.0, 1.0)
+	brightness := math32.Cos(celestialAngle*math32.Pi*2.0)*2.0 + 0.5
+	brightness = math.Clamp(brightness, 0.0, 1.0)
 
 	// Calculate the final color
 	return color{base.r * brightness, base.g * brightness,
@@ -303,12 +314,12 @@ func getVoidColor(celestialAngle float32) color {
 // angle.
 func getSunriseColor(celestialAngle float32) (color, float32) {
 	// Calculate time of day multiplier
-	multiplier := math32.Cos(celestialAngle * 2.0 * math.Pi)
+	multiplier := math32.Cos(celestialAngle * 2.0 * math32.Pi)
 
 	// Only apply the sunrise/sunset color if the time of day is right
 	if multiplier >= -0.4 && multiplier <= 0.4 {
 		phase := multiplier*1.25 + 0.5
-		sqrtAlpha := math32.Sin(phase*math.Pi)*0.99 + 0.01
+		sqrtAlpha := math32.Sin(phase*math32.Pi)*0.99 + 0.01
 		sunriseColor := color{
 			phase*0.3 + 0.7,
 			phase*phase*0.7 + 0.2,
@@ -323,8 +334,8 @@ func getSunriseColor(celestialAngle float32) (color, float32) {
 func getFogColor(celestialAngle float32, renderRadius uint,
 	lookDir mgl32.Vec3) color {
 	// Calculate the brightness multiplier
-	brightness := math32.Cos(celestialAngle*math.Pi*2.0)*2.0 + 0.5
-	brightness = util.clamp(brightness, 0.0, 1.0)
+	brightness := math32.Cos(celestialAngle*math32.Pi*2.0)*2.0 + 0.5
+	brightness = math.Clamp(brightness, 0.0, 1.0)
 
 	// Calculate the fog color using some magic numbers
 	fogColor := color{
@@ -336,7 +347,7 @@ func getFogColor(celestialAngle float32, renderRadius uint,
 	if renderRadius >= 4 {
 		// Get a vector whose direction depends on whether this is a sunrise or
 		// sunset
-		sinAngle := math32.Sin(celestialAngle * math.Pi * 2.0)
+		sinAngle := math32.Sin(celestialAngle * math32.Pi * 2.0)
 		var sunDir mgl32.Vec3
 		if sinAngle < 0.0 {
 			sunDir = mgl32.Vec3{-1.0, 0.0, 0.0}
@@ -353,9 +364,9 @@ func getFogColor(celestialAngle float32, renderRadius uint,
 
 		// Modify the fog color based on the sunrise/sunset color
 		lookMultiplier *= alpha
-		fogColor.r = util.lerp(fogColor.r, sunriseColor.r, lookMultiplier)
-		fogColor.g = util.lerp(fogColor.g, sunriseColor.g, lookMultiplier)
-		fogColor.b = util.lerp(fogColor.b, sunriseColor.b, lookMultiplier)
+		fogColor.r = math.Lerp(fogColor.r, sunriseColor.r, lookMultiplier)
+		fogColor.g = math.Lerp(fogColor.g, sunriseColor.g, lookMultiplier)
+		fogColor.b = math.Lerp(fogColor.b, sunriseColor.b, lookMultiplier)
 	}
 
 	// Modify the fog color with the sky color based on the render radius
@@ -429,16 +440,16 @@ func (p *sunrisePlane) render(info RenderInfo) {
 	// sunset (to change where the sunrise plane appears in the sky)
 	celestialAngle := getCelestialAngle(info.WorldTime)
 	var todAngle float32 // tod stands for time of day
-	if math32.Sin(celestialAngle*math.Pi*2.0) < 0.0 {
-		todAngle = math.Pi
+	if math32.Sin(celestialAngle*math32.Pi*2.0) < 0.0 {
+		todAngle = math32.Pi
 	} else {
 		todAngle = 0.0
 	}
 	todRot := mgl32.HomogRotate3D(todAngle, mgl32.Vec3{0.0, 0.0, 1.0})
 
 	// Set the shader's MVP uniform to the camera's orientation matrix
-	xRot := mgl32.HomogRotate3D(math.Pi/2.0, mgl32.Vec3{1.0, 0.0, 0.0})
-	zRot := mgl32.HomogRotate3D(math.Pi/2.0, mgl32.Vec3{0.0, 0.0, 1.0})
+	xRot := mgl32.HomogRotate3D(math32.Pi/2.0, mgl32.Vec3{1.0, 0.0, 0.0})
+	zRot := mgl32.HomogRotate3D(math32.Pi/2.0, mgl32.Vec3{0.0, 0.0, 1.0})
 	mvp := info.Camera.Orientation.Mul4(xRot.Mul4(todRot.Mul4(zRot)))
 	gl.UniformMatrix4fv(p.mvpUnf, 1, false, &mvp[0])
 

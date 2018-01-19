@@ -12,7 +12,7 @@ func genBlocks(p, q int) BlockData {
 	for x := 0; x < block.ChunkWidth; x++ {
 		for y := 0; y < 3; y++ {
 			for z := 0; z < block.ChunkDepth; z++ {
-				*blocks.At(x, y, z) = block.Stone
+				*blocks.At(x, y, z) = 3
 			}
 		}
 	}

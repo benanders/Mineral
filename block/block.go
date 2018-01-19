@@ -11,38 +11,45 @@ const (
 	ChunkDepth  = 16  // How deep a chunk is, in blocks.
 )
 
-// Block represents the ID of a block within the world.
+// Block represents a block within the world, represented by a simple block ID
+// assigned at game load.
 type Block uint32
 
-// All available block variants.
-const (
-	Air Block = iota
-	Bedrock
-	Stone
-	Dirt
-	Grass
-)
-
-// IsTransparent tells us whether a block is at least partially transparent or
-// not.
-func (b Block) IsTransparent() bool {
-	return BlockVariants[b].transparent
+// Visible tells us whether a block actually draws something to the screen
+// when present. So far, the only invisible block is air.
+func (b Block) Visible() bool {
+	return blockVariants[b].Visible
 }
 
-// IsCollidable tells us whether we have to test for collisions against a
-// block.
-func (b Block) IsCollidable() bool {
-	return BlockVariants[b].collidable
+// Transparent tells us whether a block is at least partially transparent or
+// not (whether we can see the block behind through this block).
+func (b Block) Transparent() bool {
+	return blockVariants[b].Transparent
+}
+
+// Collidable tells us whether we have to test for collisions against a block.
+func (b Block) Collidable() bool {
+	return blockVariants[b].Collidable
 }
 
 // AABB returns an axis aligned bounding box for the block, used for collision
 // detection.
 func (b Block) AABB(p, q, x, y, z int) math.AABB {
-	rx, ry, rz := float32(p*ChunkWidth+x)+0.5, float32(y)+0.5,
-		float32(q*ChunkDepth+z)+0.5
+	// Add 0.5 since the AABB struct requires we specify the centre of the
+	// block, and blocks are always 1x1 units
+	rx := float32(p*ChunkWidth+x) + 0.5
+	ry := float32(y) + 0.5
+	rz := float32(q*ChunkDepth+z) + 0.5
 	return math.AABB{
 		Center: mgl32.Vec3{rx, ry, rz},
-		Size:   mgl32.Vec3{1.0, 1.0, 1.0}}
+		Size:   mgl32.Vec3{1.0, 1.0, 1.0},
+	}
+}
+
+// UV returns the coordinate in the texture atlas of the 16x16 pixel block to
+// use to render a particular face of the block.
+func (b Block) UV() BlockUV {
+	return blockUVs[b]
 }
 
 // BlockFace represents one of the possible 6 faces of a block.
@@ -58,77 +65,18 @@ const (
 	FaceBack
 )
 
+// FaceNormals is an array indexed by block face that tells us the normal
+// vector for each face.
+var faceNormals = [...][3]int{
+	{-1, 0, 0}, // Left
+	{1, 0, 0},  // Right
+	{0, 1, 0},  // Top
+	{0, -1, 0}, // Bottom
+	{0, 0, 1},  // Front
+	{0, 0, -1}, // Back
+}
+
 // Normal tells us the normal vector for a face.
 func (f BlockFace) Normal() (int, int, int) {
-	lookup := [...][3]int{
-		{-1, 0, 0}, // Left
-		{1, 0, 0},  // Right
-		{0, 1, 0},  // Top
-		{0, -1, 0}, // Bottom
-		{0, 0, 1},  // Front
-		{0, 0, -1}, // Back
-	}
-	return lookup[f][0], lookup[f][1], lookup[f][2]
-}
-
-// BlockVariant contains the properties of a block type.
-type blockVariant struct {
-	name        string
-	visible     bool // True if the block actually renders something
-	collidable  bool // True if the block has a collidable AABB
-	transparent bool // True if we can see the block behind this one
-
-	// String containing path to image to use for all faces, or array of 6
-	// strings containing paths to the images to use for each face, or nil if
-	// the block is invisible.
-	faces interface{}
-}
-
-// Lists all available block variants, and the information associated with
-// them.
-//
-// The faces are listed in order of left, right, top, bottom, front, back.
-var BlockVariants = [...]blockVariant{
-	{
-		name:        "Air",
-		visible:     false,
-		collidable:  false,
-		transparent: true,
-		faces:       nil,
-	},
-	{
-		name:        "Bedrock",
-		visible:     true,
-		collidable:  true,
-		transparent: false,
-		faces:       "assets/minecraft/textures/blocks/bedrock.png",
-	},
-	{
-		name:        "Stone",
-		visible:     true,
-		collidable:  true,
-		transparent: false,
-		faces:       "assets/minecraft/textures/blocks/stone.png",
-	},
-	{
-		name:        "Dirt",
-		visible:     true,
-		collidable:  true,
-		transparent: false,
-		faces:       "assets/minecraft/textures/blocks/dirt.png",
-	},
-	{
-		name:        "Grass",
-		visible:     true,
-		collidable:  true,
-		transparent: false,
-		faces: [...]string{
-			"assets/minecraft/textures/blocks/grass_side.png",
-			"assets/minecraft/textures/blocks/grass_side.png",
-			"assets/minecraft/textures/blocks/grass_top.png",
-			"assets/minecraft/textures/blocks/grass_side.png",
-			"assets/minecraft/textures/blocks/grass_side.png",
-			"assets/minecraft/textures/blocks/grass_side.png",
-		},
-	},
+	return faceNormals[f][0], faceNormals[f][1], faceNormals[f][2]
 }

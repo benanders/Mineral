@@ -31,13 +31,23 @@ var supportedVersions = []string{
 // All file paths for the Minecraft assets are specified relative to the
 // `assets/minecraft` directory contained in the Minecraft `.jar` file.
 //
-// All output file paths are relative to the `assets/data` folder contained in
+// All output file paths are relative to the `asset/data` folder contained in
 // this repository.
 var assetMap = map[string]string{
-	"assets/minecraft/textures/blocks/bedrock.png": "textures/blocks/bedrock.png",
-	"assets/minecraft/textures/blocks/stone.png":   "textures/blocks/stone.png",
-	"assets/minecraft/textures/blocks/dirt.png":    "textures/blocks/dirt.png",
+	// Blocks
+	"assets/minecraft/textures/blocks/bedrock.png":     "textures/blocks/bedrock.png",
+	"assets/minecraft/textures/blocks/stone.png":       "textures/blocks/stone.png",
+	"assets/minecraft/textures/blocks/cobblestone.png": "textures/blocks/cobblestone.png",
+	"assets/minecraft/textures/blocks/dirt.png":        "textures/blocks/dirt.png",
+
+	// Environment
+	"assets/minecraft/textures/environment/sun.png":         "textures/environment/sun.png",
+	"assets/minecraft/textures/environment/moon_phases.png": "textures/environment/moon.png",
 }
+
+// BasePath is the path relative to the root of the project directory in which
+// all asset paths are relative to.
+var assetBasePath = "asset/data"
 
 func main() {
 	// Locate the `minecraft` folder based on the operating system
@@ -96,7 +106,8 @@ func main() {
 	if err != nil {
 		log.Fatalln("failed to get current working directory")
 	}
-	assetsPath := path.Join(workingDir, "assets", "data")
+	assetBasePathConv := path.Join(strings.Split(assetBasePath, "/")...)
+	assetsPath := path.Join(workingDir, assetBasePathConv)
 
 	// Iterate over all the files in the zip
 	count := 0

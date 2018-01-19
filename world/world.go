@@ -4,6 +4,7 @@ import (
 	"log"
 	"unsafe"
 
+	"github.com/benanders/mineral/asset"
 	"github.com/benanders/mineral/block"
 	"github.com/benanders/mineral/camera"
 	"github.com/benanders/mineral/render"
@@ -21,10 +22,6 @@ const (
 	// TerrainTextureSlot is the OpenGL texture slot that the terrain texture
 	// is loaded into.
 	terrainTextureSlot = 0
-
-	// The size of each block in the terrain texture image, in pixels.
-	terrainTextureBlockPixelWidth  = 16
-	terrainTextureBlockPixelHeight = 16
 )
 
 // World stores all the loaded chunks and loads/unloads chunks as required.
@@ -33,44 +30,55 @@ type World struct {
 	chunks       map[ChunkPos]*Chunk // All loaded chunks
 	channels     []chan interface{}  // Channels to goroutines loading chunks
 
-	program    uint32
-	mvpUnf     int32
-	posAttr    uint32
-	normalAttr uint32
-	uvAttr     uint32
+	program           uint32
+	mvpUnf            int32
+	terrainTextureUnf int32
+	posAttr           uint32
+	normalAttr        uint32
+	uvAttr            uint32
 
 	terrainTexture uint32
-	// Size of a single 16x16 pixel block in the terrain texture, used to
-	// compute the actual UV coordinates of a block in the texture.
-	terrainTextureBlockWidth, terrainTextureBlockHeight float32
 }
 
 // NewWorld creates a new world instance with no loaded chunks yet.
 func New(renderRadius uint) *World {
-	// Create the chunk rendering program
-	program, err := render.LoadShaders(chunkVertexShader, chunkFragmentShader)
+	// Load the block variants from the asset files
+	block.LoadVariants()
+
+	// Get the chunk vertex and fragment shaders
+	vert, err := asset.Asset("shaders/chunkVert.glsl")
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalln("failed to load shaders/chunkVert.glsl: ", err)
+	}
+	frag, err := asset.Asset("shaders/chunkFrag.glsl")
+	if err != nil {
+		log.Fatalln("failed to load shaders/chunkFrag.glsl: ", err)
+	}
+
+	// Create the chunk rendering program
+	program, err := render.LoadShaders(string(vert), string(frag))
+	if err != nil {
+		log.Fatalln("failed to load chunk shader: ", err)
 	}
 	gl.UseProgram(program)
 
 	// Cache the uniform locations
 	mvpUnf := gl.GetUniformLocation(program, gl.Str("mvp\x00"))
+	terrainTextureUnf := gl.GetUniformLocation(program, gl.Str("terrain\x00"))
 
 	// Cache the attribute locations
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
 	normalAttr := uint32(gl.GetAttribLocation(program, gl.Str("normal\x00")))
 	uvAttr := uint32(gl.GetAttribLocation(program, gl.Str("uv\x00")))
 
-	// Load the terrain texture
-
-	terrainTexture := render.LoadTexture()
+	// Load the terrain texture atlas
+	terrainTexture := block.LoadTerrainAtlas(terrainTextureSlot)
 
 	return &World{
 		renderRadius,
 		make(map[ChunkPos]*Chunk, 0),
 		make([]chan interface{}, 0),
-		program, mvpUnf, posAttr, normalAttr, uvAttr,
+		program, mvpUnf, terrainTextureUnf, posAttr, normalAttr, uvAttr,
 		terrainTexture,
 	}
 }
@@ -78,6 +86,7 @@ func New(renderRadius uint) *World {
 // Destroy unloads all the currently loaded chunks.
 func (w *World) Destroy() {
 	gl.DeleteProgram(w.program)
+	gl.DeleteTextures(1, &w.terrainTexture)
 
 	// Destroy all loaded chunks
 	for _, chunk := range w.chunks {
@@ -213,30 +222,35 @@ func (w *World) uploadChunk(chunk *Chunk, vertices []float32) {
 	gl.DeleteBuffers(1, &chunk.vbo)
 	gl.GenBuffers(1, &chunk.vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, chunk.vbo)
-	gl.BufferData(gl.ARRAY_BUFFER,
-		int(unsafe.Sizeof(float32(0.0)))*len(vertices),
-		gl.Ptr(vertices),
-		gl.STATIC_DRAW)
+	var ptr unsafe.Pointer
+	if len(vertices) > 0 {
+		ptr = gl.Ptr(vertices)
+	}
+
+	// For some reason (I have no idea why, maybe something to do with Go's
+	// internal representation of slices, and how they have a length/capacity
+	// value associated with them in a struct??) we need to add 1 to the length
+	// of the slice that we're copying to the GPU. If we don't do this, the
+	// last value in the vertex data is cut off.
+	gl.BufferData(gl.ARRAY_BUFFER, (len(vertices)+1)*4, ptr, gl.STATIC_DRAW)
 
 	// Set the vertex attributes on the new buffer
 	gl.UseProgram(w.program)
 
 	// Position attribute
 	gl.EnableVertexAttribArray(w.posAttr)
-	gl.VertexAttribPointer(w.posAttr, 3, gl.FLOAT, false,
-		valuesPerVertex*int32(unsafe.Sizeof(float32(0.0))), nil)
+	gl.VertexAttribPointer(w.posAttr, 3, gl.FLOAT, false, valuesPerVertex*4,
+		gl.PtrOffset(0))
 
 	// Normal attribute
 	gl.EnableVertexAttribArray(w.normalAttr)
-	gl.VertexAttribPointer(w.normalAttr, 3, gl.FLOAT, false,
-		valuesPerVertex*int32(unsafe.Sizeof(float32(0.0))),
-		gl.PtrOffset(3*int(unsafe.Sizeof(float32(0.0)))))
+	gl.VertexAttribPointer(w.normalAttr, 3, gl.FLOAT, false, valuesPerVertex*4,
+		gl.PtrOffset(3*4))
 
 	// UV attribute
 	gl.EnableVertexAttribArray(w.uvAttr)
-	gl.VertexAttribPointer(w.uvAttr, 3, gl.FLOAT, false,
-		valuesPerVertex*int32(unsafe.Sizeof(float32(0.0))),
-		gl.PtrOffset(6*int(unsafe.Sizeof(float32(0.0)))))
+	gl.VertexAttribPointer(w.uvAttr, 3, gl.FLOAT, false, valuesPerVertex*4,
+		gl.PtrOffset(6*4))
 }
 
 // FindChunk checks to see if the chunk at the given coordinates is already
@@ -259,11 +273,10 @@ func (w *World) Render(info RenderInfo) {
 	gl.Enable(gl.CULL_FACE)
 	gl.Enable(gl.DEPTH_TEST)
 
-	// Use the chunk shader program
+	// Use the chunk shader program and set uniforms
 	gl.UseProgram(w.program)
-
-	// Set the MVP uniform on the shader
 	gl.UniformMatrix4fv(w.mvpUnf, 1, false, &info.Camera.View[0])
+	gl.Uniform1i(w.terrainTextureUnf, terrainTextureSlot)
 
 	// Render each chunk
 	for _, chunk := range w.chunks {
@@ -295,9 +308,7 @@ func newChunk(p, q int) *Chunk {
 	// Create a VAO and VBO, but don't upload any data
 	var vao, vbo uint32
 	gl.GenVertexArrays(1, &vao)
-	gl.BindVertexArray(vao)
 	gl.GenBuffers(1, &vbo)
-	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
 	return &Chunk{P: p, Q: q, vao: vao, vbo: vbo}
 }
 
@@ -335,10 +346,7 @@ func (b BlockData) At(x, y, z int) *block.Block {
 	if x < 0 || x >= block.ChunkWidth ||
 		y < 0 || y >= block.ChunkHeight ||
 		z < 0 || z >= block.ChunkDepth {
-		// Return an air block if the coordinate is outside the block data's
-		// available range
-		temp := block.Air
-		return &temp
+		return nil
 	} else {
 		return &b[y*block.ChunkWidth*block.ChunkDepth+z*block.ChunkWidth+x]
 	}

@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"image"
 	"strings"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
@@ -87,7 +88,7 @@ func linkProgram(program uint32) error {
 
 // LoadTexture reads texture data from memory and uploads it to a GPU texture
 // for use with OpenGL.
-func LoadTexture(data []uint8, width, height int32, slot uint32) uint32 {
+func LoadTexture(img *image.RGBA, slot uint32) uint32 {
 	// Generate the texture
 	var texture uint32
 	gl.GenTextures(1, &texture)
@@ -97,8 +98,10 @@ func LoadTexture(data []uint8, width, height int32, slot uint32) uint32 {
 	gl.BindTexture(gl.TEXTURE_2D, texture)
 
 	// Upload the texture data
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGB,
-		gl.UNSIGNED_BYTE, gl.Ptr(&data[0]))
+	width := int32(img.Bounds().Max.X - img.Bounds().Min.X)
+	height := int32(img.Bounds().Max.Y - img.Bounds().Min.Y)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA,
+		gl.UNSIGNED_BYTE, gl.Ptr(&img.Pix[0]))
 
 	// Disable wrapping
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER)
