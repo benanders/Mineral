@@ -4,7 +4,6 @@ import (
 	"log"
 	"unsafe"
 
-	"github.com/benanders/mineral/asset"
 	"github.com/benanders/mineral/block"
 	"github.com/benanders/mineral/camera"
 	"github.com/benanders/mineral/render"
@@ -42,23 +41,11 @@ type World struct {
 
 // NewWorld creates a new world instance with no loaded chunks yet.
 func New(renderRadius uint) *World {
-	// Load the block variants from the asset files
-	block.LoadVariants()
-
-	// Get the chunk vertex and fragment shaders
-	vert, err := asset.Asset("shaders/chunkVert.glsl")
+	// Load the chunk rendering program
+	program, err := render.LoadShaders("shaders/chunkVert.glsl",
+		"shaders/chunkFrag.glsl")
 	if err != nil {
-		log.Fatalln("failed to load shaders/chunkVert.glsl: ", err)
-	}
-	frag, err := asset.Asset("shaders/chunkFrag.glsl")
-	if err != nil {
-		log.Fatalln("failed to load shaders/chunkFrag.glsl: ", err)
-	}
-
-	// Create the chunk rendering program
-	program, err := render.LoadShaders(string(vert), string(frag))
-	if err != nil {
-		log.Fatalln("failed to load chunk shader: ", err)
+		log.Fatalln(err)
 	}
 	gl.UseProgram(program)
 
@@ -70,6 +57,9 @@ func New(renderRadius uint) *World {
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
 	normalAttr := uint32(gl.GetAttribLocation(program, gl.Str("normal\x00")))
 	uvAttr := uint32(gl.GetAttribLocation(program, gl.Str("uv\x00")))
+
+	// Load the block variants from the asset files
+	block.LoadVariants()
 
 	// Load the terrain texture atlas
 	terrainTexture := block.LoadTerrainAtlas(terrainTextureSlot)

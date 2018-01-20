@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"image"
 	"image/draw"
-	_ "image/png"
+	_ "image/png" // Required to load png files
 	"log"
 
 	"github.com/benanders/mineral/asset"
@@ -31,6 +31,9 @@ type BlockUV struct {
 	X, Y float32
 }
 
+// Size returns the size of a block texture in the texture atlas, scaled such
+// that a size of (1.0, 1.0) represents the entire texture atlas. The size is
+// used to calculate the UV coordinates passed to OpenGL for the block texture.
 func (uv BlockUV) Size() (float32, float32) {
 	return float32(BlockTextureWidth) / float32(AtlasTextureWidth),
 		float32(BlockTextureHeight) / float32(AtlasTextureHeight)

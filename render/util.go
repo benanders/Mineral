@@ -5,20 +5,34 @@ import (
 	"image"
 	"strings"
 
+	"github.com/benanders/mineral/asset"
+
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
 
-// LoadShaders compiles a vertex and fragment shader from a string, creates a
+// LoadShaders compiles a vertex and fragment shader from an asset, creates a
 // new OpenGL shader program, attaches the two shaders, and links the program.
-func LoadShaders(vertexSource, fragmentSource string) (uint32, error) {
-	// Compile the vertex and fragment shaders
-	vertex, err := compileShader(gl.VERTEX_SHADER, vertexSource)
+func LoadShaders(vertexPath, fragmentPath string) (uint32, error) {
+	// Get the source code for the shaders
+	vertexSource, err := asset.Asset(vertexPath)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to load asset `%v`: %v", vertexPath, err)
 	}
-	fragment, err := compileShader(gl.FRAGMENT_SHADER, fragmentSource)
+	fragmentSource, err := asset.Asset(fragmentPath)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to load asset `%v`: %v", vertexPath, err)
+	}
+
+	// Compile the vertex and fragment shaders
+	vertex, err := compileShader(gl.VERTEX_SHADER, string(vertexSource))
+	if err != nil {
+		return 0, fmt.Errorf("failed to compile vertex shader `%v`: %v",
+			vertexPath, err)
+	}
+	fragment, err := compileShader(gl.FRAGMENT_SHADER, string(fragmentSource))
+	if err != nil {
+		return 0, fmt.Errorf("failed to compile fragment shader `%v`: %v",
+			fragmentPath, err)
 	}
 
 	// Create the program and attach the vertex and fragment shaders
@@ -29,7 +43,8 @@ func LoadShaders(vertexSource, fragmentSource string) (uint32, error) {
 	// Link the program
 	err = linkProgram(program)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to link program (`%v` and `%v`): %v",
+			vertexPath, fragmentPath, err)
 	}
 
 	return program, nil
@@ -40,9 +55,9 @@ func LoadShaders(vertexSource, fragmentSource string) (uint32, error) {
 func compileShader(kind uint32, source string) (uint32, error) {
 	// Create the shader and attach the source code to it
 	shader := gl.CreateShader(kind)
-	cSource, free := gl.Strs(source + "\x00")
+	cSource, cSourceFreeFn := gl.Strs(source + "\x00")
 	gl.ShaderSource(shader, 1, cSource, nil)
-	free()
+	cSourceFreeFn()
 
 	// Compile the shader
 	gl.CompileShader(shader)
@@ -58,7 +73,7 @@ func compileShader(kind uint32, source string) (uint32, error) {
 		// Retrieve the error message
 		log := strings.Repeat("\x00", int(logLength+1))
 		gl.GetShaderInfoLog(shader, logLength, nil, gl.Str(log))
-		return 0, fmt.Errorf("failed to compile shader: %v", log)
+		return 0, fmt.Errorf(log)
 	}
 
 	return shader, nil
@@ -80,7 +95,7 @@ func linkProgram(program uint32) error {
 		// Retrieve the error message
 		log := strings.Repeat("\x00", int(logLength+1))
 		gl.GetProgramInfoLog(program, logLength, nil, gl.Str(log))
-		return fmt.Errorf("failed to link shader: %v", log)
+		return fmt.Errorf(log)
 	}
 
 	return nil

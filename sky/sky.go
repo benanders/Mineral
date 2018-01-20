@@ -7,7 +7,6 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/mathgl/mgl32"
 
-	"github.com/benanders/mineral/asset"
 	"github.com/benanders/mineral/camera"
 	"github.com/benanders/mineral/math"
 	"github.com/benanders/mineral/render"
@@ -69,18 +68,9 @@ func (s *Sky) Destroy() {
 // NewSkyPlane builds the vertex data and allocates the required OpenGL
 // resources for the sky plane.
 func newSkyPlane() skyPlane {
-	// Load the vertex and fragment shader source code
-	vert, err := asset.Asset("shaders/skyVert.glsl")
-	if err != nil {
-		log.Fatalln("failed to load shaders/skyVert.glsl: ", err)
-	}
-	frag, err := asset.Asset("shaders/skyFrag.glsl")
-	if err != nil {
-		log.Fatalln("failed to load shaders/skyFrag.glsl: ", err)
-	}
-
 	// Create the program
-	program, err := render.LoadShaders(string(vert), string(frag))
+	program, err := render.LoadShaders("shaders/skyVert.glsl",
+		"shaders/skyFrag.glsl")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -149,6 +139,18 @@ func (p *skyPlane) destroy() {
 // NewSunrisePlane builds the vertex data and allocates the required OpenGL
 // resources for the sunrise plane.
 func newSunrisePlane() sunrisePlane {
+	// Create the program
+	program, err := render.LoadShaders("shaders/sunriseVert.glsl",
+		"shaders/sunriseFrag.glsl")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	gl.UseProgram(program)
+
+	// Cache uniform locations
+	mvpUnf := gl.GetUniformLocation(program, gl.Str("mvp\x00"))
+	colorUnf := gl.GetUniformLocation(program, gl.Str("sunriseColor\x00"))
+
 	// Create the VAO
 	var vao uint32
 	gl.GenVertexArrays(1, &vao)
@@ -159,29 +161,7 @@ func newSunrisePlane() sunrisePlane {
 	var vbo uint32
 	gl.GenBuffers(1, &vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, 4*18*4, gl.Ptr(&vertices[0]),
-		gl.STATIC_DRAW)
-
-	// Load the vertex and fragment shader source code
-	vert, err := asset.Asset("shaders/sunriseVert.glsl")
-	if err != nil {
-		log.Fatalln("failed to load shaders/sunriseVert.glsl: ", err)
-	}
-	frag, err := asset.Asset("shaders/sunriseFrag.glsl")
-	if err != nil {
-		log.Fatalln("failed to load shaders/sunriseFrag.glsl: ", err)
-	}
-
-	// Create the program
-	program, err := render.LoadShaders(string(vert), string(frag))
-	if err != nil {
-		log.Fatalln(err)
-	}
-	gl.UseProgram(program)
-
-	// Cache the locations of uniforms
-	mvpUnf := gl.GetUniformLocation(program, gl.Str("mvp\x00"))
-	colorUnf := gl.GetUniformLocation(program, gl.Str("sunriseColor\x00"))
+	gl.BufferData(gl.ARRAY_BUFFER, 4*18*4, gl.Ptr(&vertices[0]), gl.STATIC_DRAW)
 
 	// Enable the position attribute
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
@@ -257,8 +237,9 @@ func hsvToRgb(h, s, v float32) color {
 	return color{}
 }
 
-// The celestial angle is proportional to the angle that the sun makes with the
-// horizon. It is a value between 0 and 1 representing the time of day.
+// GetCelestialAngle returns the current celestial angle, which is proportional
+// to the angle that the sun makes with the horizon. It is a value between 0 and
+// 1, and can be thought of conceptually as the time of day.
 func getCelestialAngle(worldTime float32) float32 {
 	// Since world time is measured in days, the progress through the current
 	// day is just the fractional part of `worldTime`
