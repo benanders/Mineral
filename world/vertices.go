@@ -1,20 +1,29 @@
 package world
 
-import "github.com/benanders/mineral/block"
-
-// ValuesPerVertex tells us the number of floating point numbers emitted per
-// vertex within the vertex data.
+// ValuesPerVertex tells us the number of floating point values emitted per
+// vertex.
 const valuesPerVertex = 8
+
+// VertexGenInfo contains the necessary information to generate vertex data for
+// a chunk.
+type vertexGenInfo struct {
+	p, q   int       // The chunk to generate vertex data for
+	blocks BlockData // A copy of the chunk's block data
+
+	// Information about each block type, indexed by ID. This is only ever read
+	// from (never written to), so we're not going to get any race conditions.
+	blocksInfo *BlocksInfo
+}
 
 // GenVertices takes the block data for a chunk and generates the chunk's
 // vertex data, based on the faces of the blocks that are visible.
-func genVertices(p, q int, blocks BlockData) []float32 {
+func genVertices(info vertexGenInfo) []float32 {
 	// Generate vertex data for each block in the chunk
 	var vertices []float32
-	for x := 0; x < block.ChunkWidth; x++ {
-		for y := 0; y < block.ChunkHeight; y++ {
-			for z := 0; z < block.ChunkDepth; z++ {
-				genVerticesForBlock(&vertices, blocks, x, y, z)
+	for x := 0; x < ChunkWidth; x++ {
+		for y := 0; y < ChunkHeight; y++ {
+			for z := 0; z < ChunkDepth; z++ {
+				genVerticesForBlock(&vertices, info, x, y, z)
 			}
 		}
 	}
@@ -24,32 +33,32 @@ func genVertices(p, q int, blocks BlockData) []float32 {
 
 // GenVerticesForBlock determines which faces of the block at the given
 // coordinates are visible, and adds them to the vertex data.
-func genVerticesForBlock(vertices *[]float32, blocks BlockData, x, y, z int) {
+func genVerticesForBlock(vertices *[]float32, info vertexGenInfo, x, y, z int) {
 	// Don't generate vertices for invisible blocks
-	currentBlock := blocks.At(x, y, z)
-	if currentBlock == nil || !currentBlock.Visible() {
+	current := info.blocks.At(x, y, z)
+	if current == nil || !info.blocksInfo.get(*current).Visible {
 		return
 	}
 
 	// Generate vertex data for each face
-	for face := block.FaceLeft; face <= block.FaceBack; face++ {
+	for face := FaceLeft; face <= FaceBack; face++ {
 		// Get the coordinate of the block next to this face
-		nx, ny, nz := face.Normal()
+		nx, ny, nz := face.normal()
 		bx, by, bz := x+nx, y+ny, z+nz
 
 		// Only generate vertex data if the block next to this face is
 		// semi-transparent, or if the block is at a chunk border
-		neighbour := blocks.At(bx, by, bz)
-		if neighbour == nil || neighbour.Transparent() {
-			genVerticesForFace(vertices, currentBlock, x, y, z, face)
+		neighbour := info.blocks.At(bx, by, bz)
+		if neighbour == nil || info.blocksInfo.get(*neighbour).Transparent {
+			genVerticesForFace(vertices, info, *current, x, y, z, face)
 		}
 	}
 }
 
 // GenVerticesForFace adds the vertex data for a visible face of a block to
 // the vertices list.
-func genVerticesForFace(vertices *[]float32, blk *block.Block, x, y, z int,
-	face block.BlockFace) {
+func genVerticesForFace(vertices *[]float32, info vertexGenInfo, block Block,
+	x, y, z int, face blockFace) {
 	// All vertices that make up a cube
 	cubeVertices := [...][3]float32{
 		{0.0, 0.0, 1.0}, // Left,  bottom, front
@@ -87,13 +96,13 @@ func genVerticesForFace(vertices *[]float32, blk *block.Block, x, y, z int,
 		*vertices = append(*vertices, float32(z)+position[2])
 
 		// Normal
-		nx, ny, nz := face.Normal()
+		nx, ny, nz := face.normal()
 		*vertices = append(*vertices, float32(nx))
 		*vertices = append(*vertices, float32(ny))
 		*vertices = append(*vertices, float32(nz))
 
 		// UV
-		uv := blk.UV()
+		uv := info.blocksInfo.get(block).UV
 		w, h := uv.Size()
 		*vertices = append(*vertices, uv.X+w*faceUVs[vertex][0])
 		*vertices = append(*vertices, uv.Y+h*faceUVs[vertex][1])

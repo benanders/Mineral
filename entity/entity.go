@@ -133,14 +133,15 @@ func (e *Entity) ApplyMovementAndResolveCollisions(w *world.World) {
 // the entity along the specified axis.
 func (e *Entity) resolveBlockCollisions(w *world.World, axis collisionAxis) {
 	// Calculate the bounds of the entity's AABB in block coordinates
-	ax, bx := int(math32.Floor(e.AABB.MinX())), int(math32.Ceil(e.AABB.MaxX()))
-	ay, by := int(math32.Floor(e.AABB.MinY())), int(math32.Ceil(e.AABB.MaxY()))
-	az, bz := int(math32.Floor(e.AABB.MinZ())), int(math32.Ceil(e.AABB.MaxZ()))
+	x1, y1, z1 := world.ToWorldSpace(e.AABB.MinX(), e.AABB.MinY(),
+		e.AABB.MinZ())
+	x2, y2, z2 := world.ToWorldSpace(e.AABB.MaxX(), e.AABB.MaxY(),
+		e.AABB.MaxZ())
 
 	// Iterate over all blocks that overlap the entity
-	for x := ax; x <= bx; x++ {
-		for y := ay; y <= by; y++ {
-			for z := az; z <= bz; z++ {
+	for x := x1; x <= x2; x++ {
+		for y := y1; y <= y2; y++ {
+			for z := z1; z <= z2; z++ {
 				e.resolveBlockCollision(w, axis, x, y, z)
 			}
 		}
@@ -153,7 +154,7 @@ func (e *Entity) resolveBlockCollisions(w *world.World, axis collisionAxis) {
 func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
 	x, y, z int) {
 	// Get the chunk containing the block
-	p, q, cx, cy, cz := world.Chunked(x, y, z)
+	p, q, cx, cy, cz := world.ToChunkSpace(x, y, z)
 	chunk := w.FindChunk(p, q)
 
 	// Don't bother detecting collisions with chunks that haven't loaded
@@ -161,14 +162,20 @@ func (e *Entity) resolveBlockCollision(w *world.World, axis collisionAxis,
 		return
 	}
 
-	// Check the block we're colliding against is solid
+	// Get the block we're checking for collisions against
 	block := chunk.Blocks.At(cx, cy, cz)
-	if block == nil || !block.Collidable() {
+	if block == nil {
+		return
+	}
+
+	// Check the block we're colliding against is solid
+	info := w.GetBlockInfo(*block)
+	if !info.Collidable {
 		return
 	}
 
 	// Resolve a collision with the block
-	aabb := block.AABB(p, q, cx, cy, cz)
+	aabb := info.AABB(p, q, cx, cy, cz)
 	e.resolveCollision(aabb, axis)
 }
 

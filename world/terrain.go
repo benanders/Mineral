@@ -1,6 +1,10 @@
 package world
 
-import "github.com/benanders/mineral/block"
+// BlockGenInfo contains the necessary information to generate the terrain data
+// for a chunk.
+type blockGenInfo struct {
+	p, q int // The location of the chunk to generate terrain data for
+}
 
 // GenBlocks takes the coordinates for a chunk and procedurally generates the
 // chunk's block data.
@@ -9,9 +13,9 @@ func genBlocks(p, q int) BlockData {
 	blocks := newBlockData()
 
 	// Populate the bottom 3 layers with stone
-	for x := 0; x < block.ChunkWidth; x++ {
+	for x := 0; x < ChunkWidth; x++ {
 		for y := 0; y < 3; y++ {
-			for z := 0; z < block.ChunkDepth; z++ {
+			for z := 0; z < ChunkDepth; z++ {
 				*blocks.At(x, y, z) = 3
 			}
 		}

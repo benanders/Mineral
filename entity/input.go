@@ -8,14 +8,14 @@ import (
 // Controllable is implemented by all entities that can be controlled with a
 // controller (e.g. the input controller, or one of the AI controllers).
 type Controllable interface {
-	// Move moves the entity an amount forwards, right, and up. Delta values
-	// are normalized to 1, and should be multiplied by the entity's move speed
-	// prior to applying the movement.
+	// Move moves the entity an amount forwards, right, and up. `delta` is
+	// normalized, and should be multiplied by the entity's move speed prior to
+	// applying the movement.
 	Move(delta mgl32.Vec3)
 
-	// Look modifies the look direction of an entity by an amount. Delta values
-	// are normalized to 1, and should be multiplied by the entity's look speed
-	// prior to applying the rotation.
+	// Look modifies the look direction of an entity by an amount. `delta` is
+	// normalized, and should be multiplied by the entity's look speed prior to
+	// applying the rotation.
 	Look(delta mgl32.Vec2)
 }
 
@@ -31,21 +31,20 @@ type Controller interface {
 	Update(entity Controllable)
 }
 
-// InputCtrl controls an entity's movement and look direction based on user
-// input from the keyboard and mouse.
-type InputCtrl struct {
+// InputController controls an entity's movement and look direction based on
+// user input from the keyboard and mouse.
+type InputController struct {
 	IsKeyDown      [256]bool // Whether a key is pressed
 	mouseX, mouseY int32     // Accumulates mouse movement over a frame
 }
 
-// NewInputCtrl creates a new input controller instance with the given move and
-// look speeds.
-func NewInputCtrl() *InputCtrl {
-	return &InputCtrl{}
+// NewInputController creates a new input controller instance.
+func NewInputController() *InputController {
+	return &InputController{}
 }
 
 // HandleEvent implements the `Controller` interface.
-func (c *InputCtrl) HandleEvent(evt sdl.Event) {
+func (c *InputController) HandleEvent(evt sdl.Event) {
 	switch e := evt.(type) {
 	case *sdl.KeyboardEvent:
 		// Prevent an index out of bounds error
@@ -59,7 +58,7 @@ func (c *InputCtrl) HandleEvent(evt sdl.Event) {
 }
 
 // Update implements the `Controller` interface.
-func (c *InputCtrl) Update(entity Controllable) {
+func (c *InputController) Update(entity Controllable) {
 	// Update the entity's look direction based on mouse input. We do this
 	// first so that the entity's local coordinate system is updated before
 	// applying movement

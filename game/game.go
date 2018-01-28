@@ -14,38 +14,33 @@ import (
 
 // Game stores all the required state information while the game is running.
 type Game struct {
-	window     *sdl.Window
-	player     *entity.Player
-	playerCtrl entity.Controller
-	camera     *camera.Camera
-	sky        *sky.Sky
-	world      *world.World
+	window *sdl.Window
+
+	sky   *sky.Sky
+	world *world.World
+
+	camera           *camera.Camera
+	player           *entity.Player
+	playerController entity.Controller
 
 	startTime time.Time
-	worldTime float32
 }
 
 // New creates a new game state.
 func New(window *sdl.Window) *Game {
 	g := Game{window: window, startTime: time.Now()}
 
-	// World
+	g.sky = sky.New()
 	g.world = world.New(16)
-	g.world.LoadChunk(0, 0)
+	g.world.GenChunk(0, 0)
 
-	// Sky
-	g.sky = sky.NewSky()
-
-	// Player, and the player's input controller
 	g.player = entity.NewPlayer(mgl32.Vec3{0.0, 5.0, 0.0}, mgl32.Vec2{})
-	g.playerCtrl = entity.NewInputCtrl()
+	g.playerController = entity.NewInputController()
 
-	// Camera
 	w, h := sdl.GLGetDrawableSize(window)
 	aspect := float32(w) / float32(h)
 	g.camera = &camera.Camera{}
-	g.camera.Perspective(camera.DefaultFov, aspect, camera.DefaultNear,
-		camera.DefaultFar)
+	g.camera.Perspective(camera.Fov, aspect, camera.Near, camera.Far)
 	g.camera.Follow(g.player)
 
 	return &g
@@ -59,42 +54,36 @@ func (g *Game) Destroy() {
 
 // HandleEvent processes a user input event.
 func (g *Game) HandleEvent(evt sdl.Event) {
-	// Pass the event onto the player's input controller
-	g.playerCtrl.HandleEvent(evt)
+	g.playerController.HandleEvent(evt)
 }
 
 // Update advances the game state. It's called at a fixed time step, in order
-// to simplify some of the mechanics of the code.
+// to simplify some of the mechanics of the code (particularly the physics).
 func (g *Game) Update() {
-	// Update the world
+	// Checks for completed chunk load requests
 	g.world.Update()
 
-	// Resolve collisions between the player and the world
+	// Update the player's movement
 	g.player.ApplyMovementAndResolveCollisions(g.world)
 
-	// Update the camera, making it follow the position and look direction of
-	// the player
-	g.playerCtrl.Update(g.player)
+	// Get the camera to follow the player
+	g.playerController.Update(g.player)
 	g.camera.Follow(g.player)
-
-	// For debugging only
-	if g.playerCtrl.(*entity.InputCtrl).IsKeyDown[sdl.SCANCODE_UP] {
-		g.worldTime += 0.005
-	} else if g.playerCtrl.(*entity.InputCtrl).IsKeyDown[sdl.SCANCODE_DOWN] {
-		g.worldTime -= 0.005
-	}
 }
 
-// Render draws the game to the screen. It's called at a variable time step
-// (basically as fast as possible).
+// Render draws the game to the screen. It's called as fast as possible. Render
+// frames are dropped (slowing the visible FPS) if updating the game takes
+// longer than the alloted time.
 func (g *Game) Render() {
-	// Render the sky
+	// Sky is rendered first, underneath everything else
 	g.sky.Render(sky.RenderInfo{
-		WorldTime:    g.worldTime,
+		WorldTime:    0.0,
 		Camera:       g.camera,
 		RenderRadius: g.world.RenderRadius,
 		LookDir:      g.player.Sight()})
 
-	// Render the world
-	g.world.Render(world.RenderInfo{Camera: g.camera})
+	// The world is rendered on top of the sky
+	g.world.Render(world.RenderInfo{
+		Camera: g.camera,
+	})
 }

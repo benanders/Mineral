@@ -13,30 +13,25 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-const (
-	windowTitle  = "Mineral"
-	windowWidth  = 900
-	windowHeight = 540
+// The minimum number of nanoseconds that must elapse between update ticks.
+const nsPerTick = 1000 * 1000 * 1000 / 60
 
-	// The minimum number of nanoseconds that must elapse between update ticks.
-	nsPerTick = 1000 * 1000 * 1000 / 60
-)
-
-func main() {
+func init() {
 	// The OpenGL context MUST be created on the main OS thread. To ensure this,
 	// we lock the main OS thread
 	runtime.LockOSThread()
+}
 
+func main() {
 	// Initialise SDL
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
 		log.Fatalln("failed to initialise SDL:", err)
 	}
 	defer sdl.Quit()
 
-	// Create a new window
-	window, err := sdl.CreateWindow(windowTitle,
-		sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED,
-		windowWidth, windowHeight,
+	// Create a new window with a fixed title and initial size
+	window, err := sdl.CreateWindow("Mineral",
+		sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, 850, 500,
 		sdl.WINDOW_ALLOW_HIGHDPI|sdl.WINDOW_OPENGL|sdl.WINDOW_RESIZABLE)
 	if err != nil {
 		log.Fatalln("failed to create a new window:", err)
@@ -46,7 +41,7 @@ func main() {
 	// Trap the mouse cursor in the window
 	sdl.SetRelativeMouseMode(true)
 
-	// Hint the OpenGL version we want to use (3.3 core)
+	// Hint the OpenGL version we want to use (v3.3 core)
 	sdl.GLSetAttribute(sdl.GL_CONTEXT_MAJOR_VERSION, 3)
 	sdl.GLSetAttribute(sdl.GL_CONTEXT_MINOR_VERSION, 3)
 	sdl.GLSetAttribute(sdl.GL_CONTEXT_PROFILE_MASK, sdl.GL_CONTEXT_PROFILE_CORE)
@@ -54,7 +49,7 @@ func main() {
 	// Create the OpenGL context
 	context, err := sdl.GLCreateContext(window)
 	if err != nil {
-		log.Fatalln("failed to create an OpenGL context:", err)
+		log.Fatalln("failed to create OpenGL context:", err)
 	}
 	defer sdl.GLDeleteContext(context)
 
@@ -96,13 +91,16 @@ func main() {
 			}
 		}
 
-		// Update the game at a fixed time step
+		// Update the game at a fixed time step, triggering multiple updates if
+		// we've fallen behind (e.g. if rendering or the previous update takes
+		// too long)
 		for lag >= nsPerTick {
 			game.Update()
 			lag -= nsPerTick
 		}
 
-		// Render the game at a variable time step (as fast as possible)
+		// Render the game as fast as possible, dropping render frames to update
+		// the game if necessary
 		game.Render()
 		sdl.GLSwapWindow(window)
 	}
