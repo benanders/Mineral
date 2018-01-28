@@ -1,5 +1,0 @@
-Name = "Stone"
-Visible = true
-Collidable = true
-Transparent = false
-Texture = "textures/blocks/stone.png"

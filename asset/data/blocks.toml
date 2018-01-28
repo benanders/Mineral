@@ -1,0 +1,36 @@
+
+# A list of properties of every block in Mineral.
+
+[[blocks]]
+Name = "Air"
+Visible = false
+Collidable = false
+Transparent = true
+
+[[blocks]]
+Name = "Bedrock"
+Visible = true
+Collidable = true
+Transparent = false
+Texture = "textures/blocks/bedrock.png"
+
+[[blocks]]
+Name = "Dirt"
+Visible = true
+Collidable = true
+Transparent = false
+Texture = "textures/blocks/dirt.png"
+
+[[blocks]]
+Name = "Stone"
+Visible = true
+Collidable = true
+Transparent = false
+Texture = "textures/blocks/stone.png"
+
+[[blocks]]
+Name = "Cobblestone"
+Visible = true
+Collidable = true
+Transparent = false
+Texture = "textures/blocks/cobblestone.png"

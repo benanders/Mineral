@@ -1,5 +1,0 @@
-Name = "Bedrock"
-Visible = true
-Collidable = true
-Transparent = false
-Texture = "textures/blocks/bedrock.png"

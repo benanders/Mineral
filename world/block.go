@@ -6,7 +6,6 @@ import (
 	"image/draw"
 	_ "image/png" // Block textures are provided as .png images
 	"log"
-	"sort"
 
 	"github.com/benanders/mineral/asset"
 	"github.com/benanders/mineral/math"
@@ -63,11 +62,13 @@ const (
 )
 
 // BlocksInfo contains the properties of every block type.
-type BlocksInfo []*BlockInfo
+type BlocksInfo struct {
+	Blocks []*BlockInfo
+}
 
 // Get returns information for the given block type.
 func (info *BlocksInfo) get(b Block) *BlockInfo {
-	return (*info)[b]
+	return info.Blocks[b]
 }
 
 // BlockInfo contains the properties of a block type.
@@ -122,34 +123,17 @@ func loadBlocksInfo() (BlocksInfo, uint32) {
 // LoadBlocksProperties reads the properties of every block in the world from
 // the asset files.
 func loadBlocksProperties() BlocksInfo {
-	// Get the file name of every block
-	blockNames, err := asset.AssetDir("blocks")
+	// Get the block properties file
+	source, err := asset.Asset("blocks.toml")
 	if err != nil {
-		log.Fatalln("asset/data/blocks not found")
+		log.Fatalln("`asset/data/blocks.toml` not found")
 	}
 
-	// Sort in alphabetical order, so that block IDs are consistent every time
-	// the game is launched
-	sort.Strings(blockNames)
-
-	// Load information for each block
-	blocksInfo := make([]*BlockInfo, 0)
-	for _, blockName := range blockNames {
-		// Get the TOML source
-		source, err := asset.Asset("blocks/" + blockName)
-		if err != nil {
-			log.Fatalln("failed to load "+blockName+": ", err)
-		}
-
-		// Decode the TOML source
-		var info BlockInfo
-		_, err = toml.Decode(string(source), &info)
-		if err != nil {
-			log.Fatalln("failed to decode "+blockName+": ", err)
-		}
-
-		// Add to the list of block variants
-		blocksInfo = append(blocksInfo, &info)
+	// Decode the TOML
+	var blocksInfo BlocksInfo
+	_, err = toml.Decode(string(source), &blocksInfo)
+	if err != nil {
+		log.Fatalln("failed to decode `asset/data/blocks.toml`: ", err)
 	}
 
 	return blocksInfo
@@ -168,7 +152,7 @@ func loadBlockAtlas(slot uint32, blocksInfo BlocksInfo) uint32 {
 
 	// Load each png and place it into the atlas
 	x, y := 0, 0
-	for _, info := range blocksInfo {
+	for _, info := range blocksInfo.Blocks {
 		// Only bother getting an image if the block is visible
 		if !info.Visible {
 			continue
