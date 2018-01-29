@@ -8,7 +8,7 @@ type blockGenInfo struct {
 
 // GenBlocks takes the coordinates for a chunk and procedurally generates the
 // chunk's block data.
-func genBlocks(p, q int) BlockData {
+func genBlocks(p, q int) blockData {
 	// Create the block array
 	blocks := newBlockData()
 

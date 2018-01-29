@@ -31,8 +31,8 @@ func New(window *sdl.Window) *Game {
 	g := Game{window: window, startTime: time.Now()}
 
 	g.sky = sky.New()
-	g.world = world.New(16)
-	g.world.GenChunk(0, 0)
+	g.world = world.New(8)
+	g.world.GenChunksAround(0, 0)
 
 	g.player = entity.NewPlayer(mgl32.Vec3{0.0, 5.0, 0.0}, mgl32.Vec2{})
 	g.playerController = entity.NewInputController()
@@ -80,10 +80,13 @@ func (g *Game) Render() {
 		WorldTime:    0.0,
 		Camera:       g.camera,
 		RenderRadius: g.world.RenderRadius,
-		LookDir:      g.player.Sight()})
+		LookDir:      g.player.Sight(),
+	})
 
 	// The world is rendered on top of the sky
 	g.world.Render(world.RenderInfo{
-		Camera: g.camera,
+		Camera:       g.camera,
+		PlayerChunkP: 0,
+		PlayerChunkQ: 0,
 	})
 }

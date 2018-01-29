@@ -95,7 +95,7 @@ func blocksToml() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "blocks.toml", size: 616, mode: os.FileMode(420), modTime: time.Unix(1517129804, 0)}
+	info := bindataFileInfo{name: "blocks.toml", size: 616, mode: os.FileMode(420), modTime: time.Unix(1517129937, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -135,7 +135,7 @@ func shadersChunkvertGlsl() (*asset, error) {
 		return nil, err
 	}
 
-	info := bindataFileInfo{name: "shaders/chunkVert.glsl", size: 170, mode: os.FileMode(420), modTime: time.Unix(1516287511, 0)}
+	info := bindataFileInfo{name: "shaders/chunkVert.glsl", size: 170, mode: os.FileMode(420), modTime: time.Unix(1517211862, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }

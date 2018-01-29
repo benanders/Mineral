@@ -29,7 +29,7 @@ type Sky struct {
 type RenderInfo struct {
 	WorldTime    float32
 	Camera       *camera.Camera
-	RenderRadius uint
+	RenderRadius int
 	LookDir      mgl32.Vec3
 }
 
@@ -69,7 +69,8 @@ func (s *Sky) Destroy() {
 // resources for the sky plane.
 func newSkyPlane() skyPlane {
 	// Create the program
-	program, err := render.LoadShaders("shaders/skyVert.glsl",
+	program, err := render.LoadShaders(
+		"shaders/skyVert.glsl",
 		"shaders/skyFrag.glsl")
 	if err != nil {
 		log.Fatalln(err)
@@ -121,7 +122,7 @@ func genPlane(program uint32, vertices []float32) (vao, vbo uint32) {
 	// Enable the position attribute
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
 	gl.EnableVertexAttribArray(posAttr)
-	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false, 0, nil)
+	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false, 0, gl.PtrOffset(0))
 	return
 }
 
@@ -138,7 +139,8 @@ func (p *skyPlane) destroy() {
 // resources for the sunrise plane.
 func newSunrisePlane() sunrisePlane {
 	// Create the program
-	program, err := render.LoadShaders("shaders/sunriseVert.glsl",
+	program, err := render.LoadShaders(
+		"shaders/sunriseVert.glsl",
 		"shaders/sunriseFrag.glsl")
 	if err != nil {
 		log.Fatalln(err)
@@ -164,7 +166,8 @@ func newSunrisePlane() sunrisePlane {
 	// Enable the position attribute
 	posAttr := uint32(gl.GetAttribLocation(program, gl.Str("position\x00")))
 	gl.EnableVertexAttribArray(posAttr)
-	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false, 4*4, nil)
+	gl.VertexAttribPointer(posAttr, 3, gl.FLOAT, false, 4*4,
+		gl.PtrOffset(0))
 	// stride = 4*4 = 4 float32s (position, alpha multiplier) * 4 bytes each
 
 	// Enable the alpha multiplier attribute
@@ -317,7 +320,7 @@ func getSunriseColor(celestialAngle float32) (color, float32) {
 
 // GetFogColor returns the background fog color, including the influence of
 // looking towards the sun during sunrise or sunset.
-func getFogColor(celestialAngle float32, renderRadius uint,
+func getFogColor(celestialAngle float32, renderRadius int,
 	lookDir mgl32.Vec3) color {
 	// Calculate the brightness multiplier
 	brightness := math32.Cos(celestialAngle*math32.Pi*2.0)*2.0 + 0.5

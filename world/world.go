@@ -15,6 +15,13 @@ const (
 	// MaxRenderRadius is the maximum number of chunks ahead of the player which
 	// we can feasibly render.
 	MaxRenderRadius = 32
+
+	// DeleteRadiusFactor is the additional factor added to the render radius to
+	// create the delete radius. Only chunks outside this delete radius will be
+	// unloaded as the player moves around. The delete radius is larger than the
+	// render radius so that if the player rapidly moves back and forth across
+	// a chunk boundary, we don't have to keep unloading and reloading chunks.
+	deleteRadiusFactor = 2
 )
 
 // ToWorldSpace returns the absolute coordinate of the block that contains the
@@ -47,7 +54,7 @@ func ToChunkSpace(wx, wy, wz int) (p, q, x, y, z int) {
 
 // World manages the loading, unloading, and rendering of chunks.
 type World struct {
-	RenderRadius uint                // Current render distance
+	RenderRadius int                 // Current render distance
 	chunks       map[chunkPos]*Chunk // All loaded chunks
 	loading      []chan interface{}  // Channels to goroutines loading chunks
 	blocksInfo   BlocksInfo          // Information about each block type
@@ -65,7 +72,7 @@ type World struct {
 }
 
 // New creates a new world instance with no loaded chunks.
-func New(renderRadius uint) *World {
+func New(renderRadius int) *World {
 	// Load the chunk rendering program
 	program, err := render.LoadShaders(
 		"shaders/chunkVert.glsl",
@@ -132,8 +139,33 @@ func (w *World) GetBlockInfo(block Block) *BlockInfo {
 // upon initially loading the chunk.
 type blockVertexGenResult struct {
 	p, q     int       // The location of the chunk we generated vertex data for
-	blocks   BlockData // The generated block data
+	blocks   blockData // The generated block data
 	vertices []float32 // The generated vertex data
+}
+
+// GenChunksAround generates all chunks within the render radius around a
+// central chunk (usually the chunk that the player is in).
+func (w *World) GenChunksAround(p, q int) {
+	// Delete all chunks not within the delete radius around p, q
+	deleteRadius := w.RenderRadius + deleteRadiusFactor
+	for pos, chunk := range w.chunks {
+		dp := pos.p - p
+		dq := pos.q - q
+		if dp*dp+dq*dq > deleteRadius {
+			chunk.destroy()
+			delete(w.chunks, pos)
+		}
+	}
+
+	// Iterate over all chunks around p, q within the render radius
+	for dp := -w.RenderRadius; dp <= w.RenderRadius; dp++ {
+		for dq := -w.RenderRadius; dq <= w.RenderRadius; dq++ {
+			// Check the chunk is actually within the render radius
+			if dp*dp+dq*dq <= w.RenderRadius*w.RenderRadius {
+				w.genChunk(p+dp, q+dq)
+			}
+		}
+	}
 }
 
 // GenChunk first generates block data for a chunk, then the chunk's vertex
@@ -141,7 +173,7 @@ type blockVertexGenResult struct {
 //
 // If the chunk at the given coordinates is already loaded, then the function
 // does nothing.
-func (w *World) GenChunk(p, q int) {
+func (w *World) genChunk(p, q int) {
 	// Check the chunk isn't already loaded
 	if chunk := w.FindChunk(p, q); chunk != nil {
 		return
@@ -211,7 +243,7 @@ func (w *World) handleFinishedTask(result interface{}) {
 	switch r := result.(type) {
 	case blockVertexGenResult:
 		// Loaded all information to do with a chunk
-		chunk := newChunk(r.p, r.q)
+		chunk := newChunk()
 		chunk.Blocks = r.blocks
 		w.uploadChunk(chunk, r.vertices)
 		w.chunks[chunkPos{r.p, r.q}] = chunk
@@ -269,7 +301,9 @@ func (w *World) uploadChunk(chunk *Chunk, vertices []float32) {
 
 // RenderInfo stores information required by the world for rendering.
 type RenderInfo struct {
-	Camera *camera.Camera
+	Camera       *camera.Camera
+	PlayerChunkP int
+	PlayerChunkQ int
 }
 
 // Render draws all loaded chunks with vertex data to the screen.
@@ -283,9 +317,23 @@ func (w *World) Render(info RenderInfo) {
 	gl.UniformMatrix4fv(w.mvpUnf, 1, false, &info.Camera.View[0])
 	gl.Uniform1i(w.blockAtlasUnf, blockAtlasSlot)
 
-	// Render each chunk
-	for _, chunk := range w.chunks {
-		chunk.render(info)
+	// Iterate over each available chunk
+	for pos, chunk := range w.chunks {
+		// Don't bother rendering a chunk that's yet to be loaded, or has no
+		// vertex data
+		if chunk.Blocks == nil || chunk.numVertices == 0 {
+			continue
+		}
+
+		// Don't render a chunk that's outside the render radius
+		dp := pos.p - info.PlayerChunkP
+		dq := pos.q - info.PlayerChunkQ
+		if dp*dp+dq*dq > w.RenderRadius*w.RenderRadius {
+			continue
+		}
+
+		// Render the chunk
+		chunk.render()
 	}
 
 	// Reset the OpenGL state

@@ -23,12 +23,12 @@ type blockFace uint
 
 // All block faces.
 const (
-	FaceLeft blockFace = iota
-	FaceRight
-	FaceTop
-	FaceBottom
-	FaceFront
-	FaceBack
+	faceLeft blockFace = iota
+	faceRight
+	faceTop
+	faceBottom
+	faceFront
+	faceBack
 )
 
 // FaceNormals is an array indexed by block face that tells us the normal
@@ -78,7 +78,7 @@ type BlockInfo struct {
 	Collidable  bool   // True if the block has a collidable AABB
 	Transparent bool   // True if we can see the block behind at any angle
 	Texture     string // Path to the texture to use for all faces
-	UV          FaceUV // UV coordinates for each face
+	UV          FaceUV // UV coordinates to use for all faces
 }
 
 // AABB returns an axis aligned bounding box for the block, used for collision
@@ -115,14 +115,14 @@ func (uv FaceUV) Size() (float32, float32) {
 // Returns an array, indexed by block ID, of information for each block type,
 // and the OpenGL ID for the block texture atlas.
 func loadBlocksInfo() (BlocksInfo, uint32) {
-	blocksInfo := loadBlocksProperties()
+	blocksInfo := loadBlockProperties()
 	blockAtlas := loadBlockAtlas(blockAtlasSlot, blocksInfo)
 	return blocksInfo, blockAtlas
 }
 
 // LoadBlocksProperties reads the properties of every block in the world from
 // the asset files.
-func loadBlocksProperties() BlocksInfo {
+func loadBlockProperties() BlocksInfo {
 	// Get the block properties file
 	source, err := asset.Asset("blocks.toml")
 	if err != nil {

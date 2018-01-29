@@ -8,7 +8,7 @@ const valuesPerVertex = 8
 // a chunk.
 type vertexGenInfo struct {
 	p, q   int       // The chunk to generate vertex data for
-	blocks BlockData // A copy of the chunk's block data
+	blocks blockData // A copy of the chunk's block data
 
 	// Information about each block type, indexed by ID. This is only ever read
 	// from (never written to), so we're not going to get any race conditions.
@@ -41,7 +41,7 @@ func genVerticesForBlock(vertices *[]float32, info vertexGenInfo, x, y, z int) {
 	}
 
 	// Generate vertex data for each face
-	for face := FaceLeft; face <= FaceBack; face++ {
+	for face := faceLeft; face <= faceBack; face++ {
 		// Get the coordinate of the block next to this face
 		nx, ny, nz := face.normal()
 		bx, by, bz := x+nx, y+ny, z+nz
@@ -91,9 +91,9 @@ func genVerticesForFace(vertices *[]float32, info vertexGenInfo, block Block,
 	for vertex := 0; vertex < 6; vertex++ {
 		// Position
 		position := &cubeVertices[faceIndices[face][vertex]]
-		*vertices = append(*vertices, float32(x)+position[0])
+		*vertices = append(*vertices, float32(info.p*ChunkWidth+x)+position[0])
 		*vertices = append(*vertices, float32(y)+position[1])
-		*vertices = append(*vertices, float32(z)+position[2])
+		*vertices = append(*vertices, float32(info.q*ChunkDepth+z)+position[2])
 
 		// Normal
 		nx, ny, nz := face.normal()

@@ -20,20 +20,19 @@ type chunkPos struct {
 // Chunk stores information associated with a chunk, including OpenGL rendering
 // information, block data, vertex data, and lighting data.
 type Chunk struct {
-	P, Q        int       // The position of the chunk
-	Blocks      BlockData // The cached block data for the chunk
+	Blocks      blockData // The cached block data for the chunk
 	numVertices int32     // The number of vertices to render
 	vao, vbo    uint32    // OpenGL buffers
 }
 
 // NewChunk creates a new, empty chunk with no block, rendering, or lighting
 // data.
-func newChunk(p, q int) *Chunk {
+func newChunk() *Chunk {
 	// Create a VAO and VBO, but don't upload any data
 	var vao, vbo uint32
 	gl.GenVertexArrays(1, &vao)
 	gl.GenBuffers(1, &vbo)
-	return &Chunk{P: p, Q: q, vao: vao, vbo: vbo}
+	return &Chunk{vao: vao, vbo: vbo}
 }
 
 // Destroy releases all resources allocated when creating a chunk.
@@ -42,31 +41,24 @@ func (c *Chunk) destroy() {
 	gl.DeleteVertexArrays(1, &c.vao)
 }
 
-// Render the chunk to the screen.
-func (c *Chunk) render(info RenderInfo) {
-	// Don't bother rendering a chunk that's yet to be loaded, or has no vertex
-	// data to render
-	if c.Blocks == nil || c.numVertices == 0 {
-		return
-	}
-
-	// Render the chunk
+// Render draws the chunk to the screen.
+func (c *Chunk) render() {
 	gl.BindVertexArray(c.vao)
 	gl.DrawArrays(gl.TRIANGLES, 0, c.numVertices)
 }
 
-// BlockData represents an array of blocks within a chunk.
-type BlockData []Block
+// blockData represents an array of blocks within a chunk.
+type blockData []Block
 
 // NewBlockData creates a new blocks array for a chunk, with length equal to
 // the number of blocks in a chunk.
-func newBlockData() BlockData {
+func newBlockData() blockData {
 	return make([]Block, ChunkWidth*ChunkHeight*ChunkDepth)
 }
 
 // At returns the block at the given coordinate within the block list. If the
 // given coordinates are outside the block list's boundaries, then returns
-func (b BlockData) At(x, y, z int) *Block {
+func (b blockData) At(x, y, z int) *Block {
 	// Prevent an array out of bounds exception
 	if x < 0 || x >= ChunkWidth ||
 		y < 0 || y >= ChunkHeight ||
